@@ -11,9 +11,6 @@ const bodyParser = require('body-parser');
 let app = express();
 let server = http.Server(app);
 
-let package = require('./package.json');
-
-
 let db = require('./lib/db');
 let _  = db._;
 
