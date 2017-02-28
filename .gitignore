@@ -41,6 +41,4 @@ bower_components
 ehthumbs.db
 Thumbs.db
 
-db/users.json
-
-db/vms.json
+db
