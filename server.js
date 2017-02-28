@@ -63,13 +63,13 @@ app.use('/vm', (function(){
             .catch(e => res.json(e))
     });
 
-    router.get('/:id/status', (req, res) => {
+    router.get('/:id/state', (req, res) => {
         db.load();
         let vm = _.getById(db.vms, req.params.id);
 
-        needleGet(vm.host + '/?action=status&name=' + vm.name)
+        needleGet(vm.host + '/?action=state&name=' + vm.name)
             .then(r => {
-                r.status = r.status ? 'process' : 'stopped';
+                r.state = r.state ? 'process' : 'stopped';
                 res.json(r);
             })
             .catch(e => res.json(e))
@@ -78,37 +78,16 @@ app.use('/vm', (function(){
     return router;
 })());
 
-app.all('/', (req, res) => res.render('index'));
+app.all('/', (req, res) => {
+    res.render('index', {title: 'Merlim vm administration'});
+});
 
 app.get('/list', (req, res) => {
     db.load();
 
-    getAllVm().then(vms => {
-        db.refresh(vms);
-        res.json(db.vms);
-    });
+    res.json(db.vms);
 });
 
-
-// app.all('/vm', (req, res) => res.render('list'));
-
-// app.get('/status', function(req, res) {
-//     if (currentJob) {
-//         res.json([currentJob, currentJobStatus]);
-//     }
-//     else {
-//         throw new Error('no current job running')
-//     }
-// });
-
-// app.get('/stop', function(req, res) {
-//     if (currentJob) {
-//         res.json([currentJob.emit('kill'), currentJobStatus]);
-//     }
-//     else {
-//         throw new Error('no current job running');
-//     }
-// });
 
 server.listen(3000);
 console.log('server started on port 3000');
@@ -159,7 +138,7 @@ function getAllVm (){
                         vms = vms.concat(result.list);
                     }
                 })
-                .catch(e => console.error(e.message));
+                .catch(e => console.error(e));
         }, Promise.resolve()).then(() => resolve(vms));
     });
 };

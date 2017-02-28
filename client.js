@@ -80,7 +80,7 @@ let router = {
 
 			let info = VBoxManager.parseInfo(out);
 
-			let state = info.state ? info.state.includes('running') : false;
+			let state = info.state ? info.state.includes('running') : null;
 
 			console.log(`state vm ${name}: ${info.state}`);
 
