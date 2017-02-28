@@ -1,106 +1,154 @@
-
-
 const PORT = 8181;
 const VBoxManage = 'C:/Program Files/Oracle/VirtualBox/VBoxManage';
-
-
-let vm = {
-	Roman7788: true,
-	Natali777: true,
-	Maria7: false,
-	Pavlo7: false,
-	arsen: false,
-	leto777: false,
-};
+// const VBoxManage = '/usr/local/bin/VBoxManage';
 
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
+const cp = require('child_process');
+
 
 let router = {
-	start: function(req, res){
-		let name = req.query.name;
-		let args = 'startvm ' + name;
-
-		console.log('start vm ' + name);
-
-		if (!name) throw new Error(`'name' not defined`);
-
-		if (name in vm) {
-			vm[name] = true;
-		}
-		else {
-			throw new Error(`vm '${name}' not found`);
-		}
-
-		res.json({
-			success: true
-		});
-	},
-	stop: function(req, res){
+	start: function(req, res) {
 
 		let name = req.query.name;
-		let args = `controlvm ${name} poweroff`;
 
-		console.log('stop vm ' + name);
+		console.log(`start vm ${name}`);
 
-		if (!name) throw new Error(`'name' not defined`);
+		VBoxManager.get(name).start()
+			.then(out => {
+				let response = {success: false};
 
-		if (name in vm) {
-			vm[name] = false;
-		}
-		else {
-			throw new Error(`vm '${name}' not found`);
-		}
+				if (out.includes('successfully started')) {
+					response.success = true;
+				}
+				else {
+					response.message = 'Unknown error';
+				}
 
-		res.json({
-			success: true
-		});
+				console.log(`start vm ${name}: ${response.success}`);
+
+				res.json(response);
+			})
+			.catch(e => {
+				console.log('start vm error: ', e);
+
+				let response = {
+					success: false,
+					message: e.message
+				};
+
+				if (e.message.includes('is already locked')) {
+					response.success = true;
+				}
+
+				res.json(response);
+			});
 	},
-	status: function(req, res){
+	stop: function(req, res) {
 		let name = req.query.name;
-		let args = `status ${name}`;
 
-		let status = null;
+		console.log(`stop vm ${name}`);
 
-		if (name in vm) {
-			status = vm[name]
-		}
+		VBoxManager.get(name).stop()
+			.then(() => {
+				console.log(`stop vm ${name}: true`);
+				res.json({success: true});
+			})
+			.catch(e => {
+				console.log('stop vm error: ', e);
 
-		res.json({
-			success: true,
-			status: status
-		});
+				let response = {
+					success: false,
+					message: e.message
+				};
+
+				if (e.message.includes('is not currently running')) {
+					response.success = true;
+				}
+
+				res.json(response);
+			});
 	},
-	list:  function(req, res){
-		let args = `list`;
+	state: function(req, res) {
 
-		let list = [];
+		let name = req.query.name;
 
-		Object.keys(vm).forEach(v => {
-			list.push({
-				name: v,
-				status: vm[v]
+		console.log(`state vm ${name}`);
+
+		VBoxManager.get(name).info().then(function(out) {
+
+			let info = VBoxManager.parseInfo(out);
+
+			let state = info.state ? info.state.includes('running') : false;
+
+			console.log(`state vm ${name}: ${info.state}`);
+
+			res.json({
+				success: true,
+				state,
+				time: info.time,
+				message: info.state
+			});
+		}).catch(function(e) {
+			console.log('state vm error: ', e);
+
+			res.json({
+				success: false,
+				message: e.message
 			});
 		});
+	},
+	list: function(req, res) {
+		const re = /\"([^\"]+)\"/g;
 
-		res.json({
-			success: true,
-			list: list
+		console.log(`list vm`);
+
+		VBoxManager.list().then(function(out) {
+			let vms = re.match(out).map(r => r[1]);
+
+			VBoxManager.list(true).then(function(out) {
+
+				let running = re.match(out).map(r => r[1]);
+
+				let list = vms.map(vm => {
+					return {
+						name: vm,
+						state: running.includes(vm)
+					};
+				});
+
+				console.log(`list vm count: ${list.length}`);
+
+				res.json({
+					success: true,
+					list: list
+				});
+
+			}).catch(function(e) {
+				console.log(`list vm (2) error: `, e);
+
+				res.json({
+					success: false,
+					message: e.message
+				});
+			});
+		}).catch(function(e) {
+			console.log(`list vm (1) error: `, e);
+
+			res.json({
+				success: false,
+				message: e.message
+			});
 		});
 	}
 };
 
-
 http.createServer(server).listen(PORT);
-
 console.log('start server on port', PORT);
 
 
-http.ServerResponse.prototype.json = function (object){
-	this.setHeader('Content-Type', 'application/json');
-	return this.end(JSON.stringify(object));
-};
+////// LIB
 
 function server(request, response) {
 	let {headers, method} = request;
@@ -131,14 +179,11 @@ function server(request, response) {
 
 	request.query = query;
 
-	// console.log('request:', query);
-
 	if (query.action in router) {
 		try {
 			response.statusCode = 200;
 			router[query.action](request, response);
-		}
-		catch (err) {
+		} catch (err) {
 			console.log(err);
 			response.statusCode = 500;
 			response.json({
@@ -155,3 +200,71 @@ function server(request, response) {
 		});
 	}
 }
+
+
+class VBoxManager {
+	constructor(name) {
+		if (!name) throw new Error('VBoxManager: virtual machine name not defined');
+		this.name = name;
+	}
+
+	start() {
+		return exec(`${VBoxManage} startvm ${this.name}`);
+	}
+
+	stop() {
+		return exec(`${VBoxManage} controlvm ${this.name} poweroff`);
+	}
+
+	info() {
+		return exec(`${VBoxManage} showvminfo ${this.name}`);
+	}
+
+	static get(name) {
+		return new VBoxManager(name);
+	}
+
+	static list(onlyRunning) {
+		let type = (onlyRunning ? 'runningvms' : 'vms');
+		return exec(`${VBoxManage} list ${type}`);
+	}
+
+	static parseInfo(string){
+		const re = /([^:]+):(.+)/g;
+		const reTime  = /([-T:0-9]+)\./;
+
+		let info = re.match(string).reduce((mem, row) => {
+			let key = row[1].trim().toLowerCase();
+			let val = row[2].trim();
+			if (key) mem[key] = val;
+			return mem;
+		}, {});
+
+		let [m, time] = info.state.match(reTime);
+
+		info.time = time;
+
+		return info;
+	}
+}
+
+
+function exec(command) {
+	if (!command) throw new Error('exec: command not defined');
+
+	return new Promise(function(resolve, reject) {
+		cp.exec(command, (error, stdout, stderr) => (error ? reject(error) : resolve(stdout)));
+	});
+}
+
+RegExp.prototype.match = function(string){
+	let match, result = [];
+	while (match = this.exec(string))
+	    result.push(match);
+	return result;
+};
+
+http.ServerResponse.prototype.json = function(object) {
+	this.setHeader('Content-Type', 'application/json');
+	return this.end(JSON.stringify(object));
+};
