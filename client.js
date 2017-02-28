@@ -1,5 +1,5 @@
 const PORT = 8181;
-const VBoxManage = 'C:/Program Files/Oracle/VirtualBox/VBoxManage';
+const VBoxManage = '"%ProgramFiles%/Oracle/VirtualBox/VBoxManage.exe"';
 // const VBoxManage = '/usr/local/bin/VBoxManage';
 
 const http = require('http');
