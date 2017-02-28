@@ -1,6 +1,6 @@
 const PORT = 8181;
-const VBoxManage = '"%ProgramFiles%/Oracle/VirtualBox/VBoxManage.exe"';
-// const VBoxManage = '/usr/local/bin/VBoxManage';
+const VBoxManage = process.platform == 'darwin'
+	? '/usr/local/bin/VBoxManage' : '"%ProgramFiles%/Oracle/VirtualBox/VBoxManage.exe"';
 
 const http = require('http');
 const url = require('url');
