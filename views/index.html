@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database administration</title>
+    <link rel="icon" href="../../favicon.ico">
+
+    <link href="/jsparty/bootstrap/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/jsparty/bootstrap/dist/css/bootstrap-theme.min.css" rel="stylesheet">
+    <link href="/jsparty/jquery-ui/themes/base/all.css" rel="stylesheet">
+    <link href="/jsparty/notification-js/build/notification.min.css" rel="stylesheet">
+    <link href="css/app.css" rel="stylesheet">
+
+</head>
+<body id="content">
+    <partial name='defaultGridCell'>
+        <span>{{ formatData(column, row[column.key]) }}</span>
+    </partial>
+
+    <template id="dropdown-template">
+        <div class="dropdown" v-show="show" v-bind:class="originClass" transition="dropdown">
+            <slot>No dropdown content!</slot>
+        </div>
+    </template>
+
+    <template id="datagrid-options-template">
+        <div class="datagrid-options">
+            <div class="datagrid-options-row">
+                <input type="search" placeholder="Filter this dataset" v-model="dataFilter" />
+            </div>
+
+            <div class="datagrid-options-row" v-if="showAdvancedOptions">
+                <div class="toggle toggle-switch">
+                    <input type="checkbox" id="{{ gridId }}-allow-selection" name="{{ gridId }}-allow-selection" value="" v-model="allowSelection">
+                    <label for="{{ gridId }}-allow-selection"></label>
+                </div>
+                <label for="{{ gridId }}-allow-selection">Allow Selection</label>
+                <div class="toggle toggle-switch">
+                    <input type="checkbox" id="{{ gridId }}-allow-edit" name="{{ gridId }}-allow-edit" value="" v-model="allowEdit">
+                    <label for="{{ gridId }}-allow-edit"></label>
+                </div>
+                <label for="{{ gridId }}-allow-edit">Allow Edit</label>
+            </div>
+            <div class="table-wrapper datagrid-options-row">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Column</th>
+                            <th>Group By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>All</td>
+                            <td class="text-center">
+                                <div class="toggle toggle-radio">
+                                    <input type="radio" id="{{ gridId }}-all" name="group-by" value="" v-model="groupingColumn">
+                                    <label for="{{ gridId }}-all"></label>
+                                </div>
+                            </td>
+                        </tr>
+                        <tr v-for="column in columns" v-if="column.key && column.groupable === true">
+                            <td>{{ column.name }}</td>
+                            <td class="text-center">
+                                <div class="toggle toggle-radio">
+                                    <input type="radio" id="{{ getControlName(column.key, 'grp') }}" name="group-by" v-bind:value="column" v-model="groupingColumn">
+                                    <label for="{{ getControlName(column.key, 'grp') }}"></label>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <template id="datagrid-template">
+        <div>
+        <!-- <pre>{{ $data | json }}</pre> -->
+        <table id="{{ id }}" class="table table-striped datagrid">
+            <thead>
+                <tr>
+                    <th class="datagrid-toggle-column" v-if="allowSelection">
+                        <div class="toggle toggle-checkbox">
+                            <input type="checkbox" id="{{ id }}-allrows" name="{{ id }}-allrows" v-model="selectAll">
+                            <label for="{{ id }}-allrows"></label>
+                        </div>
+                    </th>
+                    <th v-for="(index, column) in columns" style="text-align: center;">
+                        <div class="control-group">
+                            <div class="datagrid-header control control-fill" @click="sortBy(column)" v-show="column.key">
+                                <span style="position: relative;">{{ column.name }}
+                                <span v-show="sortingKey === column.key"
+                                    class="btn-xs glyphicon glyphicon-sort-by-attributes{{ sortingDirection === 1 ? '' : '-alt' }}" style="position: absolute; right: -25px; top: 0"></span>
+                                </span>
+                            </div>
+
+                            <div class="button-group control" role="group" v-if="showOptions && index === (columns.length - 1)">
+
+                                <button type="button" class="btn btn-danger btn-xs" @click="removeRows()" v-show="selectedRows.length > 0">
+                                    <span class="glyphicon glyphicon-remove-circle"></span>
+                                </button>
+
+                                <button id="{{ id }}-refresh" type="button" class="btn btn-info btn-xs" @click="refreshTable()">
+                                    <span class="glyphicon glyphicon-refresh"></span>
+                                </button>
+
+                                <button id="{{ id }}-add-row" type="button" class="btn btn-info btn-xs" @click="addRow()">
+                                    <span class="glyphicon glyphicon-plus"></span>
+                                </button>
+
+                                <button id="{{ id }}-options" type="button" class="btn btn-primary btn-xs" aria-label="Settings">
+                                  <span class="glyphicon glyphicon-cog" aria-hidden="true"></span>
+                                </button>
+                                <dropdown :for="id + '-options'" origin="top left" :preserve-state="true">
+                                    <datagrid-options
+                                        :grid-id="id"
+                                        :columns="columns"
+                                        :allow-selection.sync="allowSelection"
+                                        :allow-edit.sync="allowEdit"
+                                        :data-filter.sync="dataFilter"
+                                        :grouping-column.sync="groupingColumn"
+                                        :show-advanced-options="showAdvancedOptions">
+                                    </datagrid-options>
+                                </dropdown>
+                            </div>
+                        </div>
+                    </th>
+                </tr>
+            </thead>
+            <tbody v-for="(groupName, groupData) in data | filterBy dataFilter | orderBy sortingKey sortingDirection | groupBy groupingColumn.key">
+                <tr v-if="groupData.length === 0">
+                    <td class="text-center" colspan="{{ columnSpan }}"><strong>No Results</strong></td>
+                </tr>
+                <tr class="table-group-header" v-if="groupingColumn">
+                    <td colspan="{{ columnSpan }}">{{ formatData(groupingColumn, groupName) }}</td>
+                </tr>
+                <tr v-for="(index, row) in groupData">
+                    <td class="datagrid-toggle-column" v-if="allowSelection">
+                        <div class="toggle toggle-checkbox">
+                            <input type="checkbox" id="{{ getControlId(groupName, index) }}" name="{{ getControlId(groupName, index) }}" :value="row" v-model="selectedRows">
+                            <label for="{{ getControlId(groupName, index) }}"></label>
+                        </div>
+                    </td>
+                    <td v-for="column in columns" :style="getColumnStyle(column)">
+                        <partial :name="getCellTemplate(column)"></partial>
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot v-if="showFooter">
+                <tr>
+                    <td colspan="{{ columnSpan }}">
+                        <ul class="chips">
+                            <li class="chip chip-removable" v-show="selectedRows.length > 0" transition="chip">
+                                <span class="chip-title">Selection</span>
+                                <span class="chip-subtitle">{{ selectedRows.length }} rows selected</span>
+                                <a class="chip-remove-button" @click="resetSelection()"></a>
+                            </li>
+                            <li class="chip chip-removable" v-show="dataFilter" transition="chip">
+                                <span class="chip-title">Filtering on</span>
+                                <span class="chip-subtitle">{{ dataFilter }}</span>
+                                <a class="chip-remove-button" @click="resetFilter()"></a>
+                            </li>
+                            <li class="chip chip-removable" v-show="groupingColumn" transition="chip">
+                                <span class="chip-title">Grouping on</span>
+                                <span class="chip-subtitle" v-if="groupingColumn">{{ groupingColumn.name }}</span>
+                                <a class="chip-remove-button" @click="resetGrouping()"></a>
+                            </li>
+                        </ul>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        </div>
+    </template>
+
+    <div class="container">
+        <nav class="navbar navbar-inverse">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a class="navbar-brand" href="#">Administration</a>
+                </div>
+
+            </div>
+        </nav>
+    </div>
+
+    <div class="container">
+        <div class="row">
+
+            <div class="col-md-12">
+
+                <h3> Виртуальные машины <span class="badge">{{vm.data.length}}</span></h3>
+
+                <datagrid id="vm-grid"
+                    @vm-operation="vmOperation"
+                    :columns="vm.columns"
+                    :data="vm.data"
+                    :show-advanced-options="true">
+                </datagrid>
+
+            </div>
+        </div>
+    </div>
+
+
+  <script type="text/javascript" src='/jsparty/jquery/dist/jquery.min.js'></script>
+  <script type="text/javascript" src='/jsparty/jquery-ui/jquery-ui.min.js'></script>
+  <script type="text/javascript" src='/jsparty/bootstrap/dist/js/bootstrap.min.js'></script>
+  <script type="text/javascript" src='/jsparty/vue/dist/vue.min.js'></script>
+  <script type="text/javascript" src='/jsparty/moment/moment.js'></script>
+  <script type="text/javascript" src='/jsparty/moment/locale/uk.js'></script>
+  <script type="text/javascript" src='/jsparty/notification-js/build/notification.min.js'></script>
+
+  <script type="text/javascript" src="/js/grid.js"></script>
+  <script type="text/javascript" src="/js/index.js"></script>
+</body>
+</html>
+
