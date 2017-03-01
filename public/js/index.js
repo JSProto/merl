@@ -33,8 +33,8 @@ Vue.config.debug = false;
 
 Vue.partial('loginGridCell', `<div style="font-size: 90%; font-weight: normal; display:block" class="label label-{{row.pass ? 'success' : 'warning'}}"><partial name="defaultGridCell"></partial></div>`);
 Vue.partial('timerGridCell',`
-<div class="progress" style='margin-bottom:0'>
-  <div class="progress-bar" role="progressbar" aria-valuenow="20" aria-valuemin="10" aria-valuemax="100" style="min-width: 2em; width: 40%">
+<div class="progress right" style='margin-bottom:0'>
+  <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + 'px'}">
     <partial name="defaultGridCell"></partial>
   </div>
 </div>
@@ -127,7 +127,14 @@ let App = new Vue({
     },
 
     created: function() {
+        $('.progress .progress-bar').progressbar();
         this.fetchData();
+    },
+    watch: {
+        transitiongoal: function (val) {
+            console.log(this, val);
+            return val;
+        }
     },
 
     methods: {
@@ -189,10 +196,18 @@ let App = new Vue({
             getVMlist().then((response) => {
                 notify.info('Данные загружены');
                 this.vm.data = response.list;
+                this.vm.data.forEach(this.calculateProgressBar);
+                console.log('trueeee');
             }).catch(e => {
                 notify.error('Ошибка загрузки данных');
                 notify.error('e.message');
             });
+        },
+        calculateProgressBar: function(row){
+            let gt = moment.duration(row.game_time);
+            let time = gt.asMinutes();
+            time = time > 40 ? 100 : time / 100 * 40;
+            row.transitiongoal = time;
         }
     }
 });
