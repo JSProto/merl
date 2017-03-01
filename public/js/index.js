@@ -186,9 +186,9 @@ let App = new Vue({
         fetchData: function() {
             notify.info('Загрузка данных...');
 
-            getVMlist().then((data) => {
+            getVMlist().then((response) => {
                 notify.info('Данные загружены');
-                this.vm.data = data;
+                this.vm.data = response.list;
             }).catch(e => {
                 notify.error('Ошибка загрузки данных');
                 notify.error('e.message');
