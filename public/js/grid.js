@@ -147,6 +147,11 @@ Vue.component('datagrid', {
         data: {
             type: Array
         },
+        processed: {
+            type: Number,
+            required: false,
+            default: 0
+        },
         cellTemplate: {
             type: String,
             required: false,

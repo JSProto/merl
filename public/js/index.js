@@ -13,28 +13,55 @@ notify.configProfile('global', {
     }
 });
 
-
-function getVMlist(){
-    return $.getJSON('/list').catch(e => notify.error(e.message));
-}
-
-function getVMState (vm) {
-    let url = `/vm/${vm.name}/state`;
-    return $.getJSON(url).catch(e => {
-        notify.error(url + ': ' +  e.message);
+let request = function(url){
+    return new Promise(function(resolve, reject){
+        $.getJSON(url).then(resolve).catch(e => {
+            notify.error(e.message);
+            reject(e);
+        });
     });
+};
+
+
+function vmStart(name){
+    return request(`/vm/${name}/start`);
 }
+
+function vmStop(name){
+    return request(`/vm/${name}/stop`);
+}
+
+function vmGetState (name) {
+    let url = `/vm/${name}/state`;
+    return request(`/vm/${name}/state`);
+}
+
+function vmRefresh(){
+    return request('/refresh');
+}
+
+function vmGetList(){
+    return request('/list');
+}
+
 
 
 Vue.config.debug = false;
 
+Vue.filter('recordLength', function (result, key) {
+    if (key) {
+        this.$set(key, result.length);
+    }
+    return result.length;
+})
 
 // Vue.partial('defaultGridCell', `<span>{{ formatData(column, row[column.key]) }}</span>`);
+// <span>{{ processed }}</span>
 
 Vue.partial('loginGridCell', `<div style="font-size: 90%; font-weight: normal; display:block" class="label label-{{row.pass ? 'success' : 'warning'}}"><partial name="defaultGridCell"></partial></div>`);
 Vue.partial('timerGridCell',`
 <div class="progress right" style='margin-bottom:0'>
-  <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + 'px'}">
+  <div class="progress-bar progress-bar-warning" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}">
     <partial name="defaultGridCell"></partial>
   </div>
 </div>
@@ -45,27 +72,14 @@ Vue.partial('linkedGridCell', `<a href="http://www.google.com?q={{ row.name }}">
 Vue.partial('buttonGridCell', `<button class="btn btn-default btn-xs" @click="editItem(row.id)"> <partial name="defaultGridCell"></partial></button>`);
 
 Vue.partial('radioGridCell', `
-<button @click.prevent="$emit('vm-operation', row)" type="button" data-loading-text="Loading..." class="btn btn-xs btn-{{row.state == 'stopped' ? 'primary' : (row.state == 'process' ? 'danger' : 'info')}}" autocomplete="off">
-    <span v-if="row.state === 'stopped'" class="glyphicon glyphicon-play"></span>
-    <span v-if="row.state === 'process'" class="glyphicon glyphicon-stop"></span>
-    <span v-if="row.state !== 'stopped' && row.state !== 'process'" class="glyphicon glyphicon-cloud-download"></span>
+<button @click.prevent="$dispatch('vm-operation', row)" type="button" class="btn btn-xs" autocomplete="off"
+    v-bind:class="[row.state == 'poweroff' ? 'btn-primary' : (row.state == 'running' ? 'btn-danger' : 'btn-info')]"
+    :disabled="row.state === 'unknown' || row.state === 'poweroff' && processed > 2">
+    <span v-if="row.state === 'poweroff'" class="glyphicon glyphicon-play"></span>
+    <span v-if="row.state === 'running'" class="glyphicon glyphicon-stop"></span>
+    <span v-if="row.state !== 'poweroff' && row.state !== 'running'" class="glyphicon glyphicon-cloud-download"></span>
 </button>
 `);
-
-
-// Vue.partial('radioGridCell', `
-// <div class="btn-group" data-toggle="buttons">
-//   <label v-if="row.state === 'stopped'" class="btn btn-xs btn-primary">
-//     <input type="radio" name="option-{{row.name}}" id="option-{{row.name}}-1" autocomplete="off" @click.prevent="$emit('start-vm', row)"> <span class="glyphicon glyphicon-play"></span>
-//   </label>
-//   <label v-if="row.state === 'process'"  class="btn btn-xs btn-danger">
-//     <input type="radio" name="option-{{row.name}}" id="option-{{row.name}}-3" autocomplete="off" @click.prevent="$emit('stop-vm', row)"> <span class="glyphicon glyphicon-stop"></span>
-//   </label>
-//   <label v-if="row.state !== 'stopped' && row.state !== 'process'" class="btn btn-xs btn-info">
-//     <input type="radio" name="option-{{row.name}}" id="option-{{row.name}}-2" autocomplete="off" @click.prevent="$emit('refresh-vm', row)"> <span class="glyphicon glyphicon-cloud-download"></span>
-//   </label>
-// </div>
-// `);
 
 
 let App = new Vue({
@@ -114,7 +128,7 @@ let App = new Vue({
                     'text-align': 'right'
                 }
             }, {
-                key: 'action', // pending, process, stopped
+                key: 'action', // pending, process, poweroff
                 name: ' ',
                 sortable: false,
                 template: 'radioGridCell',
@@ -129,60 +143,60 @@ let App = new Vue({
     created: function() {
         $('.progress .progress-bar').progressbar();
         this.fetchData();
-    },
-    watch: {
-        transitiongoal: function (val) {
-            console.log(this, val);
-            return val;
-        }
-    },
 
+        // this.$on('refresh-table', function (id) {
+        //   console.log('created refresh');
+        // })
+    },
+    events: {
+        'refresh-table': 'refreshTable',
+        'vm-operation': 'vmOperation'
+    },
     methods: {
         startVM: function(vm){
-            if (vm.state == 'process') {
+            if (vm.state == 'running') {
                 notify.warning('virtual machine already running');
                 return false;
             }
 
             notify.info('start virtual machine ' + vm.name);
             vm.state = 'pending';
-
-            $.getJSON(`/vm/${vm.name}/start`).then((res) => {
+            vmStart(vm.name).then((res) => {
                 if (res.success) {
-                    vm.state = 'process';
+                    vm.state = 'running';
                 }
                 else {
                     notify.error(res.message);
-                    vm.state = 'stopped';
+                    vm.state = 'poweroff';
                 }
-            }).catch(notify.error);
+            });
         },
         stopVM: function(vm){
-            if (vm.state == 'stopped') {
-                notify.warning('virtual machine already stopped');
+            if (vm.state == 'poweroff') {
+                notify.warning('virtual machine already poweroff');
                 return false;
             }
 
             notify.info('stop virtual machine ' + vm.name);
             vm.state = 'pending';
 
-            $.getJSON(`/vm/${vm.name}/stop`).then((res) => {
+            vmStop(vm.name).then((res) => {
                 if (res.success) {
-                    vm.state = 'stopped';
+                    vm.state = 'poweroff';
                 }
                 else {
                     notify.error(res.message);
-                    vm.state = 'process';
+                    vm.state = 'running';
                 }
-            }).catch(notify.error);
+            });
         },
         vmOperation: function(vm){
             // stop
-            if (vm.state == 'process') {
+            if (vm.state == 'running') {
                 this.stopVM(vm);
             }
             //start
-            else if (vm.state == 'stopped') {
+            else if (vm.state == 'poweroff') {
                 this.startVM(vm);
             }
             // pending
@@ -193,7 +207,7 @@ let App = new Vue({
         fetchData: function() {
             notify.info('Загрузка данных...');
 
-            getVMlist().then((response) => {
+            return vmGetList().then((response) => {
                 notify.info('Данные загружены');
                 this.vm.data = response.list;
                 this.vm.data.forEach(this.calculateProgressBar);
@@ -208,6 +222,15 @@ let App = new Vue({
             let time = gt.asMinutes();
             time = time > 40 ? 100 : time / 100 * 40;
             row.transitiongoal = time;
+        },
+        refreshTable: function(component) {
+            component.refreshingData = true;
+
+            vmRefresh().then(() => {
+                this.fetchData().then(() => {
+                    component.refreshingData = false;
+                });
+            });
         }
     }
 });

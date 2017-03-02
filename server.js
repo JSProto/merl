@@ -22,6 +22,7 @@ app.use(errorHandler);
 app.engine('html', require('ejs').renderFile);
 app.set('views', __dirname + '/views');
 app.set('view engine', 'html');
+app.disable('view cache');
 
 router(app);
 
