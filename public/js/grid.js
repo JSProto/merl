@@ -196,7 +196,8 @@ Vue.component('datagrid', {
             groupingColumn: null,
             dataFilter: '',
             selectedRows: [],
-            selectAll: false
+            selectAll: false,
+            refreshingData: false
         };
     },
     methods: {

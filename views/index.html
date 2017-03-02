@@ -96,18 +96,22 @@
                                 </span>
                             </div>
 
-                            <div class="button-group control" role="group" v-if="showOptions && index === (columns.length - 1)">
+                            <div class="button-group control" role="group"
+                                v-if="showOptions && index === (columns.length - 1)">
 
-                                <button type="button" class="btn btn-danger btn-xs" @click="removeRows()" v-show="selectedRows.length > 0">
-                                    <span class="glyphicon glyphicon-remove-circle"></span>
-                                </button>
-
-                                <button id="{{ id }}-refresh" type="button" class="btn btn-info btn-xs" @click="refreshTable()">
+                                <button id="{{ id }}-refresh" type="button" class="btn btn-info btn-xs"
+                                    @click="$dispatch('refresh-table', this)" :disabled="refreshingData">
                                     <span class="glyphicon glyphicon-refresh"></span>
                                 </button>
 
-                                <button id="{{ id }}-add-row" type="button" class="btn btn-info btn-xs" @click="addRow()">
+                                <button id="{{ id }}-add-row" type="button" class="btn btn-info btn-xs"
+                                    @click="addRow()">
                                     <span class="glyphicon glyphicon-plus"></span>
+                                </button>
+
+                                <button type="button" class="btn btn-danger btn-xs"
+                                    @click="removeRows()" :disabled="!selectedRows.length">
+                                    <span class="glyphicon glyphicon-remove-circle"></span>
                                 </button>
 
                                 <button id="{{ id }}-options" type="button" class="btn btn-primary btn-xs" aria-label="Settings">
@@ -194,9 +198,9 @@
                 <h3> Виртуальные машины <span class="badge">{{vm.data.length}}</span></h3>
 
                 <datagrid id="vm-grid"
-                    @vm-operation="vmOperation"
                     :columns="vm.columns"
                     :data="vm.data"
+                    :processed="vm.data | filterBy 'running' in 'state' | recordLength"
                     :show-advanced-options="true">
                 </datagrid>
 
