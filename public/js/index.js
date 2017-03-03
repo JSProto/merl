@@ -23,29 +23,6 @@ let request = function(url){
 };
 
 
-function vmStart(name){
-    return request(`/vm/${name}/start`);
-}
-
-function vmStop(name){
-    return request(`/vm/${name}/stop`);
-}
-
-function vmGetState (name) {
-    let url = `/vm/${name}/state`;
-    return request(`/vm/${name}/state`);
-}
-
-function vmRefresh(){
-    return request('/refresh');
-}
-
-function vmGetList(){
-    return request('/list');
-}
-
-
-
 Vue.config.debug = false;
 
 Vue.filter('recordLength', function (result, key) {
@@ -53,12 +30,23 @@ Vue.filter('recordLength', function (result, key) {
         this.$set(key, result.length);
     }
     return result.length;
-})
+});
+
+Vue.filter('formatDownTime', function (date, format) {
+    return moment(date).format(format || 'MMMM Do, HH:mm:ss'); // March 3rd, 8:55:36 pm
+});
+
+Vue.filter('formatGameTime', function (date, fromFormat) {
+    let hours = Math.floor(moment.duration(date).as('hours'));
+    let ms = moment(date, "hh:mm:ss").format("mm:ss");
+    return `${hours}:${ms}`;
+});
 
 // Vue.partial('defaultGridCell', `<span>{{ formatData(column, row[column.key]) }}</span>`);
 // <span>{{ processed }}</span>
 
 Vue.partial('loginGridCell', `<div style="font-size: 90%; font-weight: normal; display:block" class="label label-{{row.pass ? 'success' : 'warning'}}"><partial name="defaultGridCell"></partial></div>`);
+
 Vue.partial('timerGridCell',`
 <div class="progress right" style='margin-bottom:0'>
   <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}"
@@ -74,14 +62,53 @@ Vue.partial('linkedGridCell', `<a href="http://www.google.com?q={{ row.name }}">
 Vue.partial('buttonGridCell', `<button class="btn btn-default btn-xs" @click="editItem(row.id)"> <partial name="defaultGridCell"></partial></button>`);
 
 Vue.partial('radioGridCell', `
-<button @click.prevent="$dispatch('vm-operation', row)" type="button" class="btn btn-xs" autocomplete="off"
-    v-bind:class="[row.state == 'poweroff' ? 'btn-primary' : (row.state == 'running' ? 'btn-danger' : 'btn-info')]"
-    :disabled="row.state === 'unknown' || row.state === 'poweroff' && processed > 2">
-    <span v-if="row.state === 'poweroff'" class="glyphicon glyphicon-play"></span>
-    <span v-if="row.state === 'running'" class="glyphicon glyphicon-stop"></span>
-    <span v-if="row.state !== 'poweroff' && row.state !== 'running'" class="glyphicon glyphicon-cloud-download"></span>
-</button>
+    <button type="button" class="btn btn-xs" autocomplete="off"
+        v-bind:class="[row.state == 'poweroff' ? 'btn-primary' : (row.state == 'running' ? 'btn-danger' : 'btn-info')]"
+        :disabled="row.state === 'unknown' || row.state === 'poweroff' && processed > 2">
+        <span v-if="row.state === 'poweroff'" class="glyphicon glyphicon-play" @click.prevent="$dispatch('vm-start', row)"></span>
+        <span v-if="row.state === 'running'" class="glyphicon glyphicon-stop" @click.prevent="$dispatch('vm-stop', row)"></span>
+        <span v-if="row.state !== 'poweroff' && row.state !== 'running'" class="glyphicon glyphicon-time"></span>
+    </button>
 `);
+
+
+class GameTimeEmulator {
+    constructor(row){
+        this.row = row;
+        this.seconds = 0;
+        row._timer = this;
+        this.reset();
+    }
+
+    reset(){
+        this.stop();
+        this.seconds = moment.duration(this.row.game_time).as('seconds');
+        return this;
+    }
+
+    start() {
+        this._timer = setInterval(() => {
+            this.seconds++;
+
+            let d = moment.duration(this.seconds, 's').as('ms');
+            let hours = Math.floor(moment.duration(d).as('hours'));
+            let ms = moment(d).format("mm:ss");
+
+            this.row.game_time = `${hours}:${ms}`
+
+        }, 1000);
+        return this;
+    }
+
+    stop() {
+        clearInterval(this._timer);
+        return this;
+    }
+
+    static get (row){
+        return row._timer ? row._timer : new GameTimeEmulator(row);
+    }
+}
 
 
 let App = new Vue({
@@ -93,7 +120,7 @@ let App = new Vue({
 
             columns: [{
                 key: 'name',
-                name: 'Login',
+                name: 'Name',
                 // template: 'loginGridCell',
                 style: {
                     'text-align': 'left'
@@ -103,8 +130,11 @@ let App = new Vue({
                 name: 'Game Time',
                 template: 'timerGridCell',
                 style: {
-                    width: '150px',
+                    width: '180px',
                     'text-align': 'right'
+                },
+                filter: {
+                    name: "formatGameTime"
                 }
             }, {
                 key: 'down_time',
@@ -113,6 +143,9 @@ let App = new Vue({
                     width: '200px',
                     'text-align': 'center'
                 },
+                filter: {
+                    name: "formatDownTime"
+                }
             }, {
                 key: 'host',
                 name: 'Host',
@@ -127,7 +160,7 @@ let App = new Vue({
                 groupable: true,
                 style: {
                     width: '120px',
-                    'text-align': 'right'
+                    'text-align': 'center'
                 }
             }, {
                 key: 'action', // pending, process, poweroff
@@ -151,11 +184,13 @@ let App = new Vue({
         // })
     },
     events: {
-        'refresh-table': 'refreshTable',
-        'vm-operation': 'vmOperation'
+        'refresh-data': 'refreshData',
+        'refresh-merl': 'refreshMerl',
+        'vm-stop': 'vmStop',
+        'vm-start': 'vmStart'
     },
     methods: {
-        startVM: function(vm){
+        vmStart: function(vm){
             if (vm.state == 'running') {
                 notify.warning('virtual machine already running');
                 return false;
@@ -163,9 +198,11 @@ let App = new Vue({
 
             notify.info('start virtual machine ' + vm.name);
             vm.state = 'pending';
-            vmStart(vm.name).then((res) => {
+
+            request(`/vm/${vm.name}/start`).then((res) => {
                 if (res.success) {
                     vm.state = 'running';
+                    GameTimeEmulator.get(vm).start();
                 }
                 else {
                     notify.error(res.message);
@@ -173,7 +210,7 @@ let App = new Vue({
                 }
             });
         },
-        stopVM: function(vm){
+        vmStop: function(vm){
             if (vm.state == 'poweroff') {
                 notify.warning('virtual machine already poweroff');
                 return false;
@@ -182,9 +219,12 @@ let App = new Vue({
             notify.info('stop virtual machine ' + vm.name);
             vm.state = 'pending';
 
-            vmStop(vm.name).then((res) => {
+            request(`/vm/${vm.name}/stop`).then((res) => {
                 if (res.success) {
+                    let time = moment(res.down_time).format("mm:ss");
                     vm.state = 'poweroff';
+                    vm.down_time = res.down_time;
+                    GameTimeEmulator.get(vm).stop();
                 }
                 else {
                     notify.error(res.message);
@@ -192,52 +232,75 @@ let App = new Vue({
                 }
             });
         },
-        vmOperation: function(vm){
-            // stop
-            if (vm.state == 'running') {
-                this.stopVM(vm);
-            }
-            //start
-            else if (vm.state == 'poweroff') {
-                this.startVM(vm);
-            }
-            // pending
-            else {
-                return false;
-            }
+        calculateTransitiongoal: function(row){
+            let minutes = moment.duration(row.game_time).asMinutes();
+            row.transitiongoal = (minutes > 40 ? 100 : minutes / 100 * 40);
+        },
+        processRow: function(row){
+            this.calculateTransitiongoal(row);
+            if (row.state == 'running') GameTimeEmulator.get(row).start();
         },
         fetchData: function() {
-            return vmGetList().then((response) => {
-                notify.info('Данные обновлены');
+            return request('/list').then((response) => {
                 this.vm.data = response.list;
-                this.vm.data.forEach(this.calculateProgressBar);
+                this.vm.data.forEach(row => this.processRow(row));
+                notify.info('Данные получены');
             }).catch(e => {
-                notify.error('Ошибка обновления');
-                notify.error('e.message');
+                notify.error('Ошибка получения');
+                notify.error(e.message);
             });
         },
-        calculateProgressBar: function(row){
-            let gt = moment.duration(row.game_time);
-
-            let formated = [
-                Math.floor(gt.as('hours')),
-                moment(row.game_time, "hh:mm:ss").format("mm:ss")
-            ].join(':');
-
-            let time = gt.asMinutes();
-            time = time > 40 ? 100 : time / 100 * 40;
-            row.transitiongoal = time;
-            row.game_time = formated;
-        },
-        refreshTable: function(component) {
+        refreshData: function(component) {
             component.refreshingData = true;
 
-            vmRefresh().then(() => {
-                this.fetchData().then(() => {
-                    component.refreshingData = false;
+            let promise = request('/list');
+
+
+            let refreshed = () => component.refreshingData = false;
+
+            promise.then((response) => {
+                response.list.forEach((rvm) => {
+                    this.vm.data.find((vm, index) => {
+                        if (vm.name === rvm.name) {
+                            Object.assign(vm, rvm);
+                            this.processRow(vm);
+                        }
+                    });
                 });
+                refreshed();
+                notify.info('Данные обновлены');
+            }).catch(e => {
+                refreshed();
+                notify.error('Ошибка обновления');
+                notify.error(e.message);
             });
+
+            return promise;
+        },
+        refreshMerl: function(component) {
+            component.refreshingMerl = true;
+
+            console.log(component.selectedRows.length);
+
+            let promise = request('/merl/list/');
+            let refreshed = () => component.refreshingMerl = false;
+
+            promise.then(() => this.refreshData(component))
+                .then(refreshed)
+                .catch(e => {
+                    refreshed();
+                    notify.error('Ошибка обновления Merl');
+                    notify.error(e.message);
+                });
+
+            return promise;
         }
+
     }
 });
 
+
+function vmGetState (name) {
+    let url = `/vm/${name}/state`;
+    return request(`/vm/${name}/state`);
+}
