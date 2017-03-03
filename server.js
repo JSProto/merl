@@ -4,7 +4,6 @@ const bodyParser = require('body-parser');
 const methodOverride = require('method-override');
 
 let app = express();
-let router = require('./lib/router');
 
 app.use('/jsparty', express.Router().use(express.static(__dirname + '/bower_components')));
 app.use(express.static(__dirname + '/public'));
@@ -24,7 +23,7 @@ app.set('views', __dirname + '/views');
 app.set('view engine', 'html');
 app.disable('view cache');
 
-router(app);
+require('./routers')(app);
 
 app.listen(3000, function () {
     console.log('server app listening on port 3000!')
