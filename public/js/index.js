@@ -61,7 +61,9 @@ Vue.filter('recordLength', function (result, key) {
 Vue.partial('loginGridCell', `<div style="font-size: 90%; font-weight: normal; display:block" class="label label-{{row.pass ? 'success' : 'warning'}}"><partial name="defaultGridCell"></partial></div>`);
 Vue.partial('timerGridCell',`
 <div class="progress right" style='margin-bottom:0'>
-  <div class="progress-bar progress-bar-warning" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}">
+  <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}"
+  :class="[!row.transitiongoal ? 'progress-bar-danger' : (row.transitiongoal < 100 ? 'progress-bar-warning' : 'progress-bar-success')]"
+  >
     <partial name="defaultGridCell"></partial>
   </div>
 </div>
@@ -205,23 +207,27 @@ let App = new Vue({
             }
         },
         fetchData: function() {
-            notify.info('Загрузка данных...');
-
             return vmGetList().then((response) => {
-                notify.info('Данные загружены');
+                notify.info('Данные обновлены');
                 this.vm.data = response.list;
                 this.vm.data.forEach(this.calculateProgressBar);
-                console.log('trueeee');
             }).catch(e => {
-                notify.error('Ошибка загрузки данных');
+                notify.error('Ошибка обновления');
                 notify.error('e.message');
             });
         },
         calculateProgressBar: function(row){
             let gt = moment.duration(row.game_time);
+
+            let formated = [
+                Math.floor(gt.as('hours')),
+                moment(row.game_time, "hh:mm:ss").format("mm:ss")
+            ].join(':');
+
             let time = gt.asMinutes();
             time = time > 40 ? 100 : time / 100 * 40;
             row.transitiongoal = time;
+            row.game_time = formated;
         },
         refreshTable: function(component) {
             component.refreshingData = true;
