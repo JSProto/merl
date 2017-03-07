@@ -11,7 +11,7 @@ app.use(express.static(__dirname + '/public'));
 
 app.use(methodOverride('_method'));
 app.use(bodyParser.urlencoded({
-    extended: false
+    extended: true
 }));
 
 app.use(logErrors);

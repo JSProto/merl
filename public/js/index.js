@@ -13,10 +13,20 @@ notify.configProfile('global', {
     }
 });
 
-let request = function(url){
+let request = function(url, data){
+    let promise = null;
+
     return new Promise(function(resolve, reject){
-        $.getJSON(url).then(resolve).catch(e => {
-            notify.error(e.message);
+
+        if (data) {
+            promise = $.post(url, data, null, 'json');
+        }
+        else {
+            promise = $.getJSON(url);
+        }
+
+        promise.then(resolve).catch(e => {
+            notify.error(e.responseText);
             reject(e);
         });
     });
@@ -33,7 +43,7 @@ Vue.filter('recordLength', function (result, key) {
 });
 
 Vue.filter('formatDownTime', function (date, format) {
-    return moment(date).format(format || 'MMMM Do, HH:mm:ss'); // March 3rd, 8:55:36 pm
+    return moment(date).format(format || 'MM/DD HH:mm:ss'); // March 3rd, 8:55:36 pm
 });
 
 Vue.filter('formatGameTime', function (date, fromFormat) {
@@ -140,7 +150,7 @@ let App = new Vue({
                 key: 'down_time',
                 name: 'Down Time',
                 style: {
-                    width: '200px',
+                    width: '150px',
                     'text-align': 'center'
                 },
                 filter: {
@@ -280,9 +290,11 @@ let App = new Vue({
         refreshMerl: function(component) {
             component.refreshingMerl = true;
 
-            console.log(component.selectedRows.length);
 
-            let promise = request('/merl/list/');
+            let names = component.selectedRows.map(v => v.name);
+            let data = names.length ? {ids: names} : null;
+
+            let promise = request('/merl/list/', data);
             let refreshed = () => component.refreshingMerl = false;
 
             promise.then(() => this.refreshData(component))

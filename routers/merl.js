@@ -6,12 +6,18 @@ let db = require('../lib/db');
 let _  = db._;
 
 
-router.get('/list', (req, res) => {
+router.all('/list', (req, res) => {
     let message = [];
+    let vms = db.vms;
+    let ids = req.body.ids && req.body.ids.length ? req.body.ids : null;
 
-    db.vms.reduce((resolver, vm) => {
+    if (ids) {
+        vms = db.vms.filter(vm => ids.includes(vm.name));
+    }
 
-        // if (vm.state != 'running') return resolver;
+    vms.reduce((resolver, vm) => {
+
+        if (!ids && vm.state != 'running') return resolver;
 
         let user = _.getById(db.users, vm.name);
         if (!user || !user.pass) return resolver;
@@ -19,9 +25,10 @@ router.get('/list', (req, res) => {
         return resolver
             .then(() => stat(user))
             .then(json => {
+                let time = (new Date()).toISOString();
                 vm.game_time = json['cgt'];
                 vm.merl_access = true;
-                console.log(`${vm.name}: ${vm.game_time}`);
+                console.log(`${time} ${vm.name}: ${vm.game_time}`);
             })
             .catch(e => {
                 console.log(`login (${vm.name}): ${e.message}`);
@@ -37,6 +44,14 @@ router.get('/list', (req, res) => {
             success: true,
             list: db.vms
         });
+    });
+});
+
+
+router.get('/reset-game-time', (req, res) => {
+    res.json({
+        success: true,
+        count: db.resetAllGameTimers()
     });
 });
 
