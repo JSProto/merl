@@ -238,7 +238,7 @@ let App = new Vue({
         },
         processRow: function(row){
             this.calculateTransitiongoal(row);
-            if (row.state == 'running') GameTimeEmulator.get(row).start();
+            if (row.state == 'running') GameTimeEmulator.get(row).reset().start();
         },
         fetchData: function() {
             return request('/list').then((response) => {

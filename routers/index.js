@@ -1,10 +1,20 @@
 
+const schedule = require('pomelo-schedule');
 const needle = require('needle');
 
 let db = require('../lib/db');
 let VMC = require('../lib/vmc');
 let _  = db._;
 
+
+var cronJob = function(data){
+	db.resetAllGameTimers();
+
+	let date = (new Date()).toISOString();
+   	console.log(`${date}: run job: ${data.name}`);
+}
+
+schedule.scheduleJob("1 0 7 * * *", cronJob, {name:'resetAllGameTimers'});
 
 
 function refreshVirtualMachine(){
