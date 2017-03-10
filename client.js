@@ -1,12 +1,8 @@
 const PORT = 8181;
-const VBoxManage = process.platform == 'darwin'
-	? '/usr/local/bin/VBoxManage' : '"%ProgramFiles%/Oracle/VirtualBox/VBoxManage.exe"';
 
 const http = require('http');
 const url = require('url');
 const querystring = require('querystring');
-const cp = require('child_process');
-
 
 let router = {
 	start: function(req, res) {
@@ -15,7 +11,7 @@ let router = {
 
 		console.log(`start vm ${name}`);
 
-		VBoxManager.get(name).start()
+		VBox.factory(name).start()
 			.then(out => {
 				let response = {success: false};
 
@@ -26,12 +22,9 @@ let router = {
 					response.message = 'Unknown error';
 				}
 
-				console.log(`start vm ${name}: ${response.success}`);
-
 				res.json(response);
 			})
 			.catch(e => {
-				console.log('start vm error: ', e);
 
 				let response = {
 					success: false,
@@ -50,14 +43,9 @@ let router = {
 
 		console.log(`stop vm ${name}`);
 
-		VBoxManager.get(name).stop()
-			.then(() => {
-				console.log(`stop vm ${name}: true`);
-				res.json({success: true});
-			})
+		VBox.factory(name).stop()
+			.then(() => res.json({success: true}))
 			.catch(e => {
-				console.log('stop vm error: ', e);
-
 				let response = {
 					success: false,
 					message: e.message
@@ -74,11 +62,7 @@ let router = {
 
 		let name = req.query.name;
 
-		console.log(`state vm ${name}`);
-
-		VBoxManager.get(name).info().then(function(out) {
-
-			let info = VBoxManager.parseInfo(out);
+		VBox.factory(name).info().then(function(info) {
 
 			let state = info.state ? info.state.includes('running') : null;
 
@@ -91,7 +75,6 @@ let router = {
 				message: info.state
 			});
 		}).catch(function(e) {
-			console.log('state vm error: ', e);
 
 			res.json({
 				success: false,
@@ -100,41 +83,16 @@ let router = {
 		});
 	},
 	list: function(req, res) {
-		const re = /\"([^\"]+)\"/g;
+		VBox.list().then(Object.values).then(function(vms) {
 
-		console.log(`list vm`);
+			vms.forEach(vm => vm.state = vm.running);
 
-		VBoxManager.list().then(function(out) {
-			let vms = re.match(out).map(r => r[1]);
-
-			VBoxManager.list(true).then(function(out) {
-
-				let running = re.match(out).map(r => r[1]);
-
-				let list = vms.map(vm => {
-					return {
-						name: vm,
-						state: running.includes(vm)
-					};
-				});
-
-				console.log(`list vm count: ${list.length}`);
-
-				res.json({
-					success: true,
-					list: list
-				});
-
-			}).catch(function(e) {
-				console.log(`list vm (2) error: `, e);
-
-				res.json({
-					success: false,
-					message: e.message
-				});
+			res.json({
+				success: true,
+				list: vms
 			});
+
 		}).catch(function(e) {
-			console.log(`list vm (1) error: `, e);
 
 			res.json({
 				success: false,
@@ -202,59 +160,161 @@ function server(request, response) {
 }
 
 
-class VBoxManager {
-	constructor(name) {
-		if (!name) throw new Error('VBoxManager: virtual machine name not defined');
-		this.name = name;
+http.ServerResponse.prototype.json = function(object) {
+	this.setHeader('Content-Type', 'application/json');
+	return this.end(JSON.stringify(object));
+};
+
+
+///// VBox module
+const exec = require('child_process').exec;
+const vBoxManageBinary = (function(platform){
+	if (/^win/.test(platform)) {
+		let vBoxInstallPath = process.env.VBOX_INSTALL_PATH || process.env.VBOX_MSI_INSTALL_PATH;
+		return '"' + vBoxInstallPath + '\\VBoxManage.exe' + '"';
 	}
 
-	start() {
-		return exec(`${VBoxManage} startvm ${this.name}`);
+	if (/^darwin/.test(platform) || /^linux/.test(platform)) {
+		return 'vboxmanage';
 	}
 
-	stop() {
-		return exec(`${VBoxManage} controlvm ${this.name} poweroff`);
+	return 'vboxmanage';
+})(process.platform);
+
+
+class VBox {
+	constructor(vmname) {
+		if (!vmname) throw new Error('VBox: virtual machine name not defined');
+		this._name = vmname;
 	}
 
 	info() {
-		return exec(`${VBoxManage} showvminfo ${this.name}`);
+		return VBox.manage(`showvminfo "${this._name}"`).then(parse_infodata);
 	}
 
-	static get(name) {
-		return new VBoxManager(name);
+	pause() {
+		console.info('Pausing VM "%s"', this._name);
+		return VBox.manage(`controlvm "${this._name}" pause`);
 	}
 
-	static list(onlyRunning) {
-		let type = (onlyRunning ? 'runningvms' : 'vms');
-		return exec(`${VBoxManage} list ${type}`);
+	reset() {
+		console.info('Resetting VM "%s"', this._name);
+		return VBox.manage(`controlvm "${this._name}" reset`);
 	}
 
-	static parseInfo(string){
-		const re = /([^:]+):(.+)/g;
-		const reTime  = /([-T:0-9]+)\./;
+	resume() {
+		console.info('Resuming VM "%s"', this._name);
+		return VBox.manage(`controlvm "${this._name}" resume`);
+	}
 
-		let info = re.match(string).reduce((mem, row) => {
-			let key = row[1].trim().toLowerCase();
-			let val = row[2].trim();
-			if (key) mem[key] = val;
-			return mem;
-		}, {});
+	start(useGui = false) {
+		useGui = ' --type ' + (useGui ? 'gui' : 'headless');
 
-		let [m, time] = info.state.match(reTime);
+		console.info('Starting VM "%s" with options:', this._name, useGui);
+		return VBox.manage(`-nologo startvm "${this._name}" ${useGui}`);
+	}
 
-		info.time = time;
+	stop() {
+		console.info('Stopping VM "%s"', this._name);
+		return VBox.manage(`controlvm "${this._name}" savestate`);
+	}
 
-		return info;
+	savestate() {
+		console.info('Saving State (alias to stop) VM "%s"', this._name);
+		return this.stop();
+	}
+
+	poweroff() {
+		console.info('Powering off VM "%s"', this._name);
+		return VBox.manage(`controlvm "${this._name}" poweroff`);
+	}
+
+	isRunning() {
+		return VBox.manage(`list runningvms`).then(stdout => {
+			console.info('Checking virtual machine "%s" is running or not', this._name);
+			return stdout.indexOf(this._name) !== -1;
+		});
+	}
+
+	static version() {
+		return VBox.manage(' --version').then(stdout => String(stdout.split(".")[0]).trim());
+
+		// console.info("Virtualbox version detected as %s", VBox.version());
+	}
+
+	static manage(cmd) {
+
+		if (!cmd) throw new Error('VBox.manage: cmd not defined');
+
+		return new Promise(function(resolve, reject) {
+
+			exec(`${vBoxManageBinary} ${cmd}`, function(err, stdout, stderr) {
+
+				if (err) {
+					err.stdout = stdout;
+					err.stderr = stderr;
+				}
+
+				if (err && /VBOX_E_INVALID_OBJECT_STATE/.test(err.message)) {
+					err = undefined;
+				}
+
+				if (!err && stderr && cmd.indexOf("pause") !== -1 && cmd.indexOf("savestate") !== -1) {
+					err = new Error(stderr);
+				}
+
+				if (err) {
+					console.error(err);
+				}
+
+				return (err ? reject(err) : resolve(stdout));
+			});
+		});
+	}
+
+	static list() {
+		return VBox.manage('list runningvms').then(parse_listdata).then(runningvms => {
+			return VBox.manage('list vms').then(parse_listdata).then(vms => {
+				let length = Object.keys(vms).map(key => vms[key].running = key in runningvms).length;
+				console.info('Listing VMs:', length);
+				return vms;
+			});
+		});
+	}
+
+	static factory(name) {
+		return new VBox(name);
 	}
 }
 
+function parse_listdata(stdout) {
+	return stdout.split(/\r?\n/g)
+		.map(line => line.match(/^"(.+)" \{(.+)\}$/))
+		.filter(matches => matches && matches.length === 3)
+		.reduce(function(data, matches){
+			let key = matches[2].toString();
+			let name = matches[1].toString();
+			data[key] = {name};
+			return data;
+		}, {});
+}
 
-function exec(command) {
-	if (!command) throw new Error('exec: command not defined');
+function parse_infodata(stdout){
+	const re = /([^:]+):(.+)/g;
+	const reTime  = /([-T:0-9]+)\./;
 
-	return new Promise(function(resolve, reject) {
-		cp.exec(command, (error, stdout, stderr) => (error ? reject(error) : resolve(stdout)));
-	});
+	let info = re.match(stdout).reduce((mem, row) => {
+		let key = row[1].trim().toLowerCase();
+		let val = row[2].trim();
+		if (key) mem[key] = val;
+		return mem;
+	}, {raw: stdout});
+
+	let [m, time] = info.state.match(reTime);
+
+	info.state_time = time;
+
+	return info;
 }
 
 RegExp.prototype.match = function(string){
@@ -264,7 +324,7 @@ RegExp.prototype.match = function(string){
 	return result;
 };
 
-http.ServerResponse.prototype.json = function(object) {
-	this.setHeader('Content-Type', 'application/json');
-	return this.end(JSON.stringify(object));
-};
+VBox.version().then(version => {
+	VBox.ver = version;
+	console.info("Virtualbox version detected as %s", version);
+});
