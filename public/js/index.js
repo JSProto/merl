@@ -92,7 +92,7 @@ class GameTimeEmulator {
 
     reset(){
         this.stop();
-        this.seconds = moment.duration(this.row.game_time).as('seconds');
+        this.seconds = moment.duration(this.row.today_time).as('seconds');
         return this;
     }
 
@@ -104,7 +104,7 @@ class GameTimeEmulator {
             let hours = Math.floor(moment.duration(d).as('hours'));
             let ms = moment(d).format("mm:ss");
 
-            this.row.game_time = `${hours}:${ms}`
+            this.row.today_time = `${hours}:${ms}`
 
         }, 1000);
         return this;
@@ -136,8 +136,8 @@ let App = new Vue({
                     'text-align': 'left'
                 }
             }, {
-                key: 'game_time',
-                name: 'Game Time',
+                key: 'today_time',
+                name: 'Today Time',
                 template: 'timerGridCell',
                 style: {
                     width: '180px',
@@ -147,15 +147,29 @@ let App = new Vue({
                     name: "formatGameTime"
                 }
             }, {
-                key: 'down_time',
-                name: 'Down Time',
+                key: 'today_downloads',
+                name: 'Today DL',
                 style: {
-                    width: '150px',
+                    width: '80px',
                     'text-align': 'center'
-                },
-                filter: {
-                    name: "formatDownTime"
                 }
+            }, {
+                key: 'total_downloads',
+                name: 'Total DL',
+                style: {
+                    width: '80px',
+                    'text-align': 'center'
+                }
+            // }, {
+            //     key: 'down_time',
+            //     name: 'Down Time',
+            //     style: {
+            //         width: '150px',
+            //         'text-align': 'center'
+            //     },
+            //     filter: {
+            //         name: "formatDownTime"
+            //     }
             }, {
                 key: 'host',
                 name: 'Host',
@@ -243,7 +257,7 @@ let App = new Vue({
             });
         },
         calculateTransitiongoal: function(row){
-            let minutes = moment.duration(row.game_time).asMinutes();
+            let minutes = moment.duration(row.today_time).asMinutes();
             row.transitiongoal = (minutes > 40 ? 100 : minutes / 100 * 40);
         },
         processRow: function(row){

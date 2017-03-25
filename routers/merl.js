@@ -26,9 +26,18 @@ router.all('/list', (req, res) => {
             .then(() => stat(user))
             .then(json => {
                 let time = (new Date()).toISOString();
-                vm.game_time = json['cgt'];
+
+                vm.today_downloads = json['today_downloads'];
+                vm.today_time = json['today_time'];
+                vm.today_banners = json['today_banners'];
+                vm.today_earning = json['today_earning'];
+                vm.total_downloads = json['total_downloads'];
+                vm.total_time = json['total_time'];
+                vm.total_banners = json['total_banners'];
+                vm.total_earning = json['total_earning'];
+
                 vm.merl_access = true;
-                console.log(`${time} ${vm.name}: ${vm.game_time}`);
+                console.log(`${time} ${vm.name}: ${vm.today_time}`);
             })
             .catch(e => {
                 console.log(`login (${vm.name}): ${e.message}`);
@@ -55,6 +64,8 @@ router.get('/reset-game-time', (req, res) => {
     });
 });
 
+/*
+, */
 
 router.get('/:id', (req, res, next) => {
     let name = req.params.id;
@@ -63,14 +74,23 @@ router.get('/:id', (req, res, next) => {
 
     stat(user)
         .then(json => {
-            vm.game_time = json['cgt'];
+
+            vm.today_downloads = json['today_downloads'];
+            vm.today_time = json['today_time'];
+            vm.today_banners = json['today_banners'];
+            vm.today_earning = json['today_earning'];
+            vm.total_downloads = json['total_downloads'];
+            vm.total_time = json['total_time'];
+            vm.total_banners = json['total_banners'];
+            vm.total_earning = json['total_earning'];
+
             vm.merl_access = true;
-            console.log(`${vm.name}: ${vm.game_time}`);
+            console.log(`${vm.name}: ${vm.today_time}`);
 
             db.saveVms();
             res.json({
                 success: true,
-                game_time: vm.game_time
+                today_time: vm.today_time
             });
         })
         .catch(e => {
