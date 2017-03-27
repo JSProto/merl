@@ -27,17 +27,10 @@ router.all('/list', (req, res) => {
             .then(json => {
                 let time = (new Date()).toISOString();
 
-                vm.today_downloads = json['today_downloads'];
-                vm.today_time = json['today_time'];
-                vm.today_banners = json['today_banners'];
-                vm.today_earning = json['today_earning'];
-                vm.total_downloads = json['total_downloads'];
-                vm.total_time = json['total_time'];
-                vm.total_banners = json['total_banners'];
-                vm.total_earning = json['total_earning'];
+                Object.assign(vm, json);
 
                 vm.merl_access = true;
-                console.log(`${time} ${vm.name}: ${vm.today_time}`);
+                console.log(`$ merl: ${time} ${vm.name}: ${vm.today_time}`);
             })
             .catch(e => {
                 console.log(`login (${vm.name}): ${e.message}`);
@@ -75,14 +68,7 @@ router.get('/:id', (req, res, next) => {
     stat(user)
         .then(json => {
 
-            vm.today_downloads = json['today_downloads'];
-            vm.today_time = json['today_time'];
-            vm.today_banners = json['today_banners'];
-            vm.today_earning = json['today_earning'];
-            vm.total_downloads = json['total_downloads'];
-            vm.total_time = json['total_time'];
-            vm.total_banners = json['total_banners'];
-            vm.total_earning = json['total_earning'];
+            Object.assign(vm, json);
 
             vm.merl_access = true;
             console.log(`${vm.name}: ${vm.today_time}`);
