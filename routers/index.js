@@ -1,6 +1,5 @@
 
 const schedule = require('pomelo-schedule');
-const needle = require('needle');
 
 let db = require('../lib/db');
 let VMC = require('../lib/vmc');
