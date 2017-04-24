@@ -1,9 +1,9 @@
 
-let router = require('express').Router();
+const router = require('express').Router();
 
-let stat = require('../lib/stat');
-let db = require('../lib/db');
-let _  = db._;
+const stat = require('../lib/stat');
+const db = require('../lib/db');
+const _  = db._;
 
 
 router.all('/list', (req, res) => {

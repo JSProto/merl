@@ -1,61 +1,26 @@
 
-const schedule = require('pomelo-schedule');
-const needle = require('needle');
+const router = require('express').Router();
 
-let db = require('../lib/db');
-let VMC = require('../lib/vmc');
-let _  = db._;
-
-
-var cronJob = function(data){
-	db.resetAllGameTimers();
-
-	let date = (new Date()).toISOString();
-   	console.log(`${date}: run job: ${data.name}`);
-}
-
-schedule.scheduleJob("1 0 7 * * *", cronJob, {name:'resetAllGameTimers'});
-
-
-function refreshVirtualMachine(){
-	db.load();
-	let promise = VMC.list(db.hosts);
-	promise.then(db.refresh.bind(db)).catch(console.log);
-	return promise;
-}
-
-
-let router = require('express').Router();
-
-
-router.all('/', (req, res) => {
-    res.render('index', {title: new Buffer('TWVybGltIHZtIGFkbWluaXN0cmF0aW9u', 'base64').toString()});
-});
-
-router.get('/list', (req, res) => {
-	refreshVirtualMachine().then(() => {
-	    res.json({
-			success: true,
-			list: db.vms
-		});
-	}).catch(e => {
-	    res.json({
-			success: false,
-			message: e.message,
-			list: db.vms
-		});
-	});
-});
-
-
-let vm = require('./vm');
-let merl = require('./merl');
 
 // init all routers
 module.exports = function (app) {
-	refreshVirtualMachine();
+
+	router.all('/', function (req, res) {
+	    res.render('index', {title: new Buffer('TWVybGltIHZtIGFkbWluaXN0cmF0aW9u', 'base64').toString()});
+	});
+
+	router.get('/refresh', function* (req, res) {
+		const application = app.get('application');
+	    yield* application.actions.refresh();
+		res.json({success: true, list: application.db.vms});
+	});
+
+	router.get('/list', (req, res) => {
+		const db = app.get('db');
+	    res.json({success: true, list: db.vms});
+	});
 
 	app.use('/', router);
-	app.use('/vm', vm);
-	app.use('/merl', merl);
+	app.use('/vm', require('./vm'));
+	app.use('/merl', require('./merl'));
 }

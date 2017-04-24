@@ -9,7 +9,7 @@ const notify = notification;
 
 notify.configProfile('global', {
     notification: {
-        position: ['right', 'bottom']
+        position: ['left', 'bottom']
     }
 });
 
@@ -33,226 +33,272 @@ let request = function(url, data){
 };
 
 
-Vue.config.debug = false;
+Vue.config.devtools = true
+Vue.config.silent = false
+
 
 Vue.filter('recordLength', function (result, key) {
+    result = result || [];
+
     if (key) {
-        this.$set(key, result.length);
+        Vue.set(this, key, result.length);
+        // this.$set(key, result.length);
     }
+    // console.log('recordLength', result);
     return result.length;
 });
+
+
+// | filterBy 'Running' in 'state' | recordLength
 
 Vue.filter('formatDownTime', function (date, format) {
     return moment(date).format(format || 'MM/DD HH:mm:ss'); // March 3rd, 8:55:36 pm
 });
-
+Vue.filter('dump', function (dump, format) {
+    console.log('dump', dump, format);
+    return 1;
+});
 Vue.filter('formatGameTime', function (date, fromFormat) {
     let hours = Math.floor(moment.duration(date).as('hours'));
     let ms = moment(date, "hh:mm:ss").format("mm:ss");
     return `${hours}:${ms}`;
 });
 
-// Vue.partial('defaultGridCell', `<span>{{ formatData(column, row[column.key]) }}</span>`);
-// <span>{{ processed }}</span>
+Vue.filter('runningOnHost', function (obj) {
+    obj = obj || {};
+    let l = data.vm.data.filter(r => r.state == 'Running').filter(r => r.host == obj.host).length;
+    console.log('runningOnHost', l, obj);
+    return l;
+});
 
-Vue.partial('loginGridCell', `<div style="font-size: 90%; font-weight: normal; display:block" class="label label-{{row.pass ? 'success' : 'warning'}}"><partial name="defaultGridCell"></partial></div>`);
+const DefaultGridCell = Vue.component('defaultGridCell', {
+    props: ['row', 'column'],
+    template: `<span>{{ $parent.formatData(column, row[column.key]) }}</span>`,
+});
 
-Vue.partial('timerGridCell',`
-<div class="progress right" style='margin-bottom:0'>
-  <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}"
-  :class="[!row.transitiongoal ? 'progress-bar-danger' : (row.transitiongoal < 100 ? 'progress-bar-warning' : 'progress-bar-success')]"
-  >
-    <partial name="defaultGridCell"></partial>
-  </div>
-</div>
-`);
+Vue.component('editableGridCell', DefaultGridCell.extend({
+    template: `<input type="text" v-model="row[column.key]" lazy/>`
+}));
 
-Vue.partial('linkedGridCell', `<a href="http://www.google.com?q={{ row.name }}"><partial name="defaultGridCell"></partial></a>`);
+// Vue.component('loginGridCell', DefaultGridCell.extend({
+//     template: `<div style="font-size: 90%; font-weight: normal; display:block"
+//         v-bind:class="'label label-' + row.pass ? 'success' : 'warning'"><span>{{ formatData(column, row[column.key]) }}</span></div>`
+// }));
+// Vue.component('linkedGridCell', DefaultGridCell.extend({
+//     template: `<a href="http://www.google.com?q={{ row.name }}"><partial name="defaultGridCell"></partial></a>`
+// }));
+// Vue.component('buttonGridCell', DefaultGridCell.extend({
+//     template: `<button class="btn btn-default btn-xs" @click="editItem(row.id)"> <partial name="defaultGridCell"></partial></button>`
+// }));
 
-Vue.partial('buttonGridCell', `<button class="btn btn-default btn-xs" @click="editItem(row.id)"> <partial name="defaultGridCell"></partial></button>`);
+Vue.component('timerGridCell', DefaultGridCell.extend({
+    template: `
+        <div class="progress right" style='margin-bottom:0'>
+          <div class="progress-bar" role="progressbar" style="min-width: 4em;" :style="{width: row.transitiongoal + '%'}"
+          :class="[!row.transitiongoal ? 'progress-bar-danger' : (row.transitiongoal < 100 ? 'progress-bar-warning' : 'progress-bar-success')]">
+            <span>{{ $parent.formatData(column, row[column.key]) }}</span>
+          </div>
+        </div>
+        `
+}));
 
-Vue.partial('radioGridCell', `
-    <button type="button" class="btn btn-xs" autocomplete="off"
-        v-bind:class="[row.state == 'poweroff' ? 'btn-primary' : (row.state == 'running' ? 'btn-danger' : 'btn-info')]"
-        :disabled="row.state === 'unknown' || row.state === 'poweroff' && processed > 2">
-        <span v-if="row.state === 'poweroff'" class="glyphicon glyphicon-play" @click.prevent="$dispatch('vm-start', row)"></span>
-        <span v-if="row.state === 'running'" class="glyphicon glyphicon-stop" @click.prevent="$dispatch('vm-stop', row)"></span>
-        <span v-if="row.state !== 'poweroff' && row.state !== 'running'" class="glyphicon glyphicon-time"></span>
+Vue.component('radioGridCell', DefaultGridCell.extend({
+    template: `
+    <button v-if="row.state === 'Disconnected' || row.state === 'Pending' || !row.state" type="button" class="btn btn-xs" autocomplete="off" disabled v-bind:class="row.state == 'Disconnected' ? '' : 'btn-info'">
+        <span class="glyphicon" v-bind:class="row.state == 'Disconnected' ? 'glyphicon-flash' : 'glyphicon-time'"></span>
     </button>
-`);
+
+    <button v-else-if="row.state === 'Running'" type="button" class="btn btn-xs btn-danger" autocomplete="off">
+        <span class="glyphicon glyphicon-stop" @click.prevent="stop"></span>
+    </button>
+
+    <button v-else type="button" class="btn btn-xs" autocomplete="off"
+        v-bind:class="row.state == 'PoweredOff' ? 'btn-primary' : (row.state == 'Paused' ? 'btn-info' : 'btn-warning')">
+        <span class="glyphicon glyphicon-play" @click.prevent="start"></span>
+    </button>
+    `,
+
+    methods: {
+        'stop': function() {
+            App.vmStop(this.row);
+        },
+        'start': function(){
+            App.vmStart(this.row);
+        }
+    },
+}));
 
 
-class GameTimeEmulator {
-    constructor(row){
-        this.row = row;
-        this.seconds = 0;
-        row._timer = this;
-        this.reset();
+const DataGrid = Vue.component('datagrid');
+
+
+Vue.component('datagridvm', DataGrid.extend({
+    methods: {
+        refreshMerl: function(){
+            App.refreshMerl(this);
+        },
+        refreshData: function(){
+            App.refreshData(this);
+        }
     }
+}));
 
-    reset(){
-        this.stop();
-        this.seconds = moment.duration(this.row.today_time).as('seconds');
-        return this;
-    }
+// data | filterBy row.host in 'host' | filterBy 'Running' in 'state' | recordLength
 
-    start() {
-        this._timer = setInterval(() => {
-            this.seconds++;
+let store = {
+    vm: {
+        data: [],
 
-            let d = moment.duration(this.seconds, 's').as('ms');
-            let hours = Math.floor(moment.duration(d).as('hours'));
-            let ms = moment(d).format("mm:ss");
-
-            this.row.today_time = `${hours}:${ms}`
-
-        }, 1000);
-        return this;
-    }
-
-    stop() {
-        clearInterval(this._timer);
-        return this;
-    }
-
-    static get (row){
-        return row._timer ? row._timer : new GameTimeEmulator(row);
-    }
-}
-
+        columns: [{
+            key: 'name',
+            name: 'Name',
+            // template: 'loginGridCell',
+            style: {
+                'text-align': 'left'
+            }
+        }, {
+            key: 'today_time',
+            name: 'Today Time',
+            template: 'timerGridCell',
+            style: {
+                width: '180px',
+                'text-align': 'right'
+            },
+            filter: {
+                name: "formatGameTime"
+            }
+        }, {
+            key: 'today_downloads',
+            name: 'Today DL',
+            sortable: false,
+            style: {
+                width: '80px',
+                'text-align': 'center'
+            }
+        }, {
+            key: 'total_downloads',
+            name: 'Total DL',
+            sortable: false,
+            style: {
+                width: '80px',
+                'text-align': 'center'
+            }
+        // }, {
+        //     key: 'down_time',
+        //     name: 'Down Time',
+        //     style: {
+        //         width: '150px',
+        //         'text-align': 'center'
+        //     },
+        //     filter: {
+        //         name: "formatDownTime"
+        //     }
+        }, {
+            key: 'host',
+            name: 'Host',
+            groupable: true,
+            style: {
+                width: '150px',
+                'text-align': 'center'
+            }
+        }, {
+            key: 'state',
+            name: 'State',
+            groupable: true,
+            style: {
+                width: '120px',
+                'text-align': 'center'
+            }
+        }, {
+            key: 'action',
+            name: ' ',
+            sortable: false,
+            template: 'radioGridCell',
+            style: {
+                width: '50px',
+                'text-align': 'center'
+            }
+        }]
+    },
+    states: [
+        'Null',
+        'PoweredOff',
+        'Saved',
+        'Teleported',
+        'Aborted',
+        'Running',
+        'Paused',
+        'Stuck',
+        'Teleporting',
+        'LiveSnapshotting',
+        'Starting',
+        'Stopping',
+        'Saving',
+        'Restoring',
+        'TeleportingPausedVM',
+        'TeleportingIn',
+        'FaultTolerantSyncing',
+        'DeletingSnapshotOnline',
+        'DeletingSnapshotPaused',
+        'OnlineSnapshotting',
+        'RestoringSnapshot',
+        'DeletingSnapshot',
+        'SettingUp',
+        'Snapshotting',
+    ]
+};
 
 let App = new Vue({
     el: '#content',
-    replace: false,
-    data: {
-        vm: {
-            data: [],
-
-            columns: [{
-                key: 'name',
-                name: 'Name',
-                // template: 'loginGridCell',
-                style: {
-                    'text-align': 'left'
-                }
-            }, {
-                key: 'today_time',
-                name: 'Today Time',
-                template: 'timerGridCell',
-                style: {
-                    width: '180px',
-                    'text-align': 'right'
-                },
-                filter: {
-                    name: "formatGameTime"
-                }
-            }, {
-                key: 'today_downloads',
-                name: 'Today DL',
-                style: {
-                    width: '80px',
-                    'text-align': 'center'
-                }
-            }, {
-                key: 'total_downloads',
-                name: 'Total DL',
-                style: {
-                    width: '80px',
-                    'text-align': 'center'
-                }
-            // }, {
-            //     key: 'down_time',
-            //     name: 'Down Time',
-            //     style: {
-            //         width: '150px',
-            //         'text-align': 'center'
-            //     },
-            //     filter: {
-            //         name: "formatDownTime"
-            //     }
-            }, {
-                key: 'host',
-                name: 'Host',
-                groupable: true,
-                style: {
-                    width: '150px',
-                    'text-align': 'center'
-                }
-            }, {
-                key: 'state',
-                name: 'State',
-                groupable: true,
-                style: {
-                    width: '120px',
-                    'text-align': 'center'
-                }
-            }, {
-                key: 'action', // pending, process, poweroff
-                name: ' ',
-                sortable: false,
-                template: 'radioGridCell',
-                style: {
-                    width: '50px',
-                    'text-align': 'center'
-                }
-            }]
-        }
+    data: function() {
+        return store;
     },
 
     created: function() {
-        $('.progress .progress-bar').progressbar();
-        this.fetchData();
-
-        // this.$on('refresh-table', function (id) {
-        //   console.log('created refresh');
-        // })
-    },
-    events: {
-        'refresh-data': 'refreshData',
-        'refresh-merl': 'refreshMerl',
-        'vm-stop': 'vmStop',
-        'vm-start': 'vmStart'
+        this.fetchData().then(() => {
+            $('.progress .progress-bar').progressbar();
+        });
     },
     methods: {
         vmStart: function(vm){
-            if (vm.state == 'running') {
-                notify.warning('virtual machine already running');
+            if (vm.state == 'Running') {
+                notify.warning('virtual machine already Running');
                 return false;
             }
 
             notify.info('start virtual machine ' + vm.name);
-            vm.state = 'pending';
+            vm.state = 'Pending';
 
-            request(`/vm/${vm.name}/start`).then((res) => {
+            request(`/vm/start/${vm.id}`).then((res) => {
                 if (res.success) {
-                    vm.state = 'running';
-                    GameTimeEmulator.get(vm).start();
+                    vm.state = 'Running';
+                    // GameTimeEmulator.get(vm).start();
                 }
                 else {
                     notify.error(res.message);
-                    vm.state = 'poweroff';
+                    vm.state = 'PoweredOff';
                 }
             });
         },
         vmStop: function(vm){
-            if (vm.state == 'poweroff') {
-                notify.warning('virtual machine already poweroff');
+            if (vm.state == 'PoweredOff') {
+                notify.warning('virtual machine already PoweredOff');
                 return false;
             }
 
             notify.info('stop virtual machine ' + vm.name);
-            vm.state = 'pending';
+            vm.state = 'Pending';
 
-            request(`/vm/${vm.name}/stop`).then((res) => {
+            request(`/vm/stop/${vm.id}`).then((res) => {
                 if (res.success) {
                     let time = moment(res.down_time).format("mm:ss");
-                    vm.state = 'poweroff';
+                    vm.state = 'PoweredOff';
                     vm.down_time = res.down_time;
-                    GameTimeEmulator.get(vm).stop();
+                    // GameTimeEmulator.get(vm).stop();
                 }
                 else {
                     notify.error(res.message);
-                    vm.state = 'running';
+                    vm.state = 'Running';
                 }
             });
         },
@@ -262,12 +308,13 @@ let App = new Vue({
         },
         processRow: function(row){
             this.calculateTransitiongoal(row);
-            if (row.state == 'running') GameTimeEmulator.get(row).reset().start();
+            // if (row.state == 'Running') GameTimeEmulator.get(row).reset().start();
         },
         fetchData: function() {
             return request('/list').then((response) => {
                 this.vm.data = response.list;
                 this.vm.data.forEach(row => this.processRow(row));
+
                 notify.info('Данные получены');
             }).catch(e => {
                 notify.error('Ошибка получения');
@@ -320,13 +367,41 @@ let App = new Vue({
                 });
 
             return promise;
-        }
+        },
 
+    },
+    computed: {
+        groupedHost: function(host, row){
+            let r = this.$options.filters.groupBy(this.vm.data, 'host');
+            console.dir(r);
+            return r;
+        }
     }
 });
 
+Vue.component('datagrid2', {
+    template: '#datagrid2-template',
+    props: {
+        id: {
+            type: String,
+            required: true
+        }
+    },
+    data: function () {
+        return {
+            sortingKey: null,
+            sortingDirection: 1,
+            groupingColumn: null,
+            dataFilter: '',
+            selectedRows: [],
+            selectAll: false,
+            refreshingData: false,
+            refreshingMerl: false
+        };
+    },
+});
 
-function vmGetState (name) {
-    let url = `/vm/${name}/state`;
-    return request(`/vm/${name}/state`);
+function vmGetState (id) {
+    let url = `/vm/state/${id}`;
+    return request(`/vm/state/${id}`);
 }

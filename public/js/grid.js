@@ -1,17 +1,15 @@
 
-Vue.partial('defaultGridCell', `<span>{{ formatData(column, row[column.key]) }}</span>`);
-Vue.partial('editableGridCell', `<input type="text" v-model="row[column.key]" lazy/>`);
 
 Vue.filter('groupBy', function (value, key) {
-    var groups = {
+    let groups = {
         data: value
     };
 
     if (key) {
         groups = {};
-        for (var i = 0; i < value.length; i++) {
-            var row = value[i];
-            var cell = row[key];
+        for (let i = 0; i < value.length; i++) {
+            let row = value[i];
+            let cell = row[key];
 
             if (!groups.hasOwnProperty(cell)) {
                 groups[cell] = [];
@@ -60,12 +58,12 @@ Vue.component('dropdown', {
             show: false
         };
     },
-    ready: function () {
-        var _this = this;
+    mounted: function () {
+        let _this = this;
 
-        var element = document.getElementById(_this.for);
+        let element = document.getElementById(_this.for);
 
-        var hide = function (event) {
+        let hide = function (event) {
             event.stopPropagation();
 
             if (!(_this.preserveState && _this.$el.contains(event.target))) {
@@ -74,11 +72,11 @@ Vue.component('dropdown', {
             }
         };
 
-        var show = function (event) {
+        let show = function (event) {
             event.preventDefault();
             event.stopPropagation();
 
-            var dropdowns = [].slice.call(document.querySelectorAll('.dropdown'));
+            let dropdowns = [].slice.call(document.querySelectorAll('.dropdown'));
 
             dropdowns.forEach(function (dropdown) {
                 dropdown.__vue__.show = false;
@@ -187,6 +185,28 @@ Vue.component('datagrid', {
         },
         showFooter: function () {
             return this.dataFilter || this.groupingColumn || this.selectedRows.length > 0;
+        },
+        filteredData: function() {
+            let sortKey = this.sortingKey
+            let filterKey = this.dataFilter && this.dataFilter.toLowerCase()
+            let order = this.sortingDirection;
+            let data = this.data
+            if (filterKey) {
+                data = data.filter(function(row) {
+                    return Object.keys(row).some(function(key) {
+                        return String(row[key]).toLowerCase().indexOf(filterKey) > -1
+                    })
+                })
+            }
+            if (sortKey) {
+                data = data.slice().sort(function(a, b) {
+                    a = a[sortKey]
+                    b = b[sortKey]
+                    return (a === b ? 0 : a > b ? 1 : -1) * order
+                })
+            }
+
+            return Vue.filter('groupBy')(data, this.groupingColumn && this.groupingColumn.key);
         }
     },
     data: function () {
@@ -236,15 +256,15 @@ Vue.component('datagrid', {
         },
         formatData: function (column, value) {
             if (column.hasOwnProperty('filter')) {
-                var filter = Vue.filter(column.filter.name);
+                let filter = Vue.filter(column.filter.name);
                 if (!filter) throw new Error(`filter "${column.filter.name}" not found`);
-                var args = [].concat(value, column.filter.args);
+                let args = [].concat(value, column.filter.args);
                 return (filter.read || filter).apply(this, args);
             }
             return value;
         },
         addRow: function () {
-            var nextId = this.data.reduce((m, e)=> m > e.id ? m:  parseInt(e.id), 0) + 1;
+            let nextId = this.data.reduce((m, e)=> m > e.id ? m:  parseInt(e.id), 0) + 1;
             this.data.unshift({
                 id: nextId,
                 description: 'test'
@@ -253,7 +273,11 @@ Vue.component('datagrid', {
             this.allowSelection = true;
         },
         removeRows: function () {
-            this.selectedRows.forEach(row => this.data.$remove(row));
+            this.selectedRows.forEach(row => {
+                let index = this.data.indexOf(row);
+                this.data.splice(index, 1);
+                // this.data.$remove(row)
+            });
             this.resetSelection();
         }
     },
@@ -263,5 +287,6 @@ Vue.component('datagrid', {
         }
     }
 });
+
 
 

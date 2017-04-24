@@ -1,62 +1,75 @@
 
-const needle = require('needle');
+const router = require('express').Router();
+const co = require('co');
 
-let db = require('../lib/db');
-let VMC = require('../lib/vmc');
-let _  = db._;
+router.param('id', function (req, res, next, id) {
+    const application = req.app.get('application');
+    const db = req.app.get('db');
 
+    let vm = db._.getById(db.vms, id);
 
-let router = require('express').Router();
+    if (!vm) {
+        return next(new Error('No vm matching ' + id));
+    }
 
-router.get('/:id/start', (req, res, next) => {
-    let vm = _.getById(db.vms, req.params.id);
-    VMC.get(vm).start().then(r => {
+    res.success = false;
 
-    	if (r.success) {
-    		vm.state = 'running';
-    	}
-    	else {
-    		vm.state = 'poweroff';
-    	}
+    co(function* (){
+        const machine = yield application.cluster.find(id, vm.host);
+        req.vm = vm;
+        req.machine = machine;
 
-    	db.saveVms();
-    	res.json(r);
-    }).catch(next);
+        next();
+    }).catch(function(e){
+        console.log(e);
+        next(new Error('No machine matching ' + id));
+    });
 });
 
-router.get('/:id/stop', (req, res, next) => {
-    let vm = _.getById(db.vms, req.params.id);
-    VMC.get(vm).stop().then(r => {
-    	if (r.success) {
-    		vm.state = 'poweroff';
-    		vm.down_time = (new Date()).toISOString();
-    	}
-    	else {
-    		vm.state = 'running';
-    	}
-    	db.saveVms();
-    	res.json(r);
-    }).catch(next);
+router.all('/start/:id', function* (req, res) {
+    let state = yield req.machine.state;
+
+    if (state != 'Running') {
+        yield* req.machine.start(true);
+        state = yield req.machine.state;
+    }
+
+    req.vm.state = state;
+    res.success = true;
 });
 
-router.get('/:id/state', (req, res, next) => {
-    let vm = _.getById(db.vms, req.params.id);
+router.all('/stop/:id', function* (req, res) {
 
-    VMC.get(vm).stop().then(r => {
-    	if (r.state === true) {
-    		vm.state = 'running';
-    	}
-    	else if (vm.state === false) {
-    		vm.state = 'poweroff';
-    	}
-    	else {
-    		vm.state = 'unknown';
-    	}
-    	db.saveVms();
-    	res.json(vm);
-    }).catch(next);
+    const machine = req.machine;
+
+    let state = yield machine.state;
+    let sessionState = yield machine.sessionState;
+
+    console.log('state: ', state);
+
+    if (state == 'Running') {
+        yield machine.lock();
+        yield machine.poweroff();
+        yield machine.unlock();
+
+        state = yield machine.state;
+    }
+
+    req.vm.state = state;
+    res.success = true;
+});
+
+router.all('/state/:id', function* (req, res) {
+    req.vm.state = yield req.machine.state;
+    res.success = true;
+});
+
+router.all('*', function(req, res){
+    const response = Object.assign({success: res.success}, req.vm);
+    const db = req.app.get('db');
+    db.save();
+    res.json(response);
 });
 
 
 module.exports = router;
-
