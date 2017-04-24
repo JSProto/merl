@@ -37,7 +37,7 @@ co(function* (){
 
     yield application.cluster.logon();
     yield* application.actions.keepAlive();
-    yield* application.actions.refresh(true);
+    yield* application.actions.refresh();
 
     application.httpServer = server(application);
 
