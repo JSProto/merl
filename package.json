@@ -21,7 +21,8 @@
     "virtualbox-soap": "git+https://github.com/JSProto/virtualbox-soap.git"
   },
   "scripts": {
-    "preinstall": "npm i -g bower",
+    "preinstall": "cp db_example db && npm install -g bower",
+    "postinstall": "bower install",
     "start": "node index.js --cron"
   }
 }
