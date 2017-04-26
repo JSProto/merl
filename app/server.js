@@ -1,5 +1,6 @@
 "use strict";
 
+const path = require('path');
 const express = require('express');
 const yields = require('express-yields');
 const bodyParser = require('body-parser');
@@ -11,12 +12,27 @@ const app = express();
 module.exports = function (application) {
     const config = application.config;
 
+    const appClose = application.actions.close;
+    application.actions.close = function* () {
+        console.log();
+        const httpServer = application.httpServer;
+        if (httpServer) {
+            console.log("Shutting down the http server...");
+            application.httpServer = null;
+            yield new Promise(function (resolve) {
+                httpServer.close(resolve);
+            });
+        }
+
+        yield appClose();
+    };
+
     app.set('application', application);
     app.set('db', application.db);
     app.set('cluster', application.cluster);
 
-    app.use('/jsparty', express.Router().use(express.static(__dirname + '/bower_components')));
-    app.use(express.static(__dirname + '/public'));
+    app.use('/jsparty', express.Router().use(express.static(path.resolve('bower_components'))));
+    app.use(express.static(path.resolve('public')));
 
     app.use(methodOverride('_method'));
     app.use(bodyParser.urlencoded({
@@ -28,11 +44,11 @@ module.exports = function (application) {
     app.use(errorHandler);
 
     app.engine('html', require('ejs').renderFile);
-    app.set('views', __dirname + '/views');
+    app.set('views', path.resolve('views'));
     app.set('view engine', 'html');
     app.disable('view cache');
 
-    require('./routers')(app);
+    require(path.resolve('routers'))(app);
 
     let httpServer = app.listen(config.port || 3000, function() {
         let {family, address, port} = httpServer.address();

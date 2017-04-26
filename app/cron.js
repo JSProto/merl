@@ -1,5 +1,4 @@
 
-const path = require('path');
 const co = require('co');
 const cron = require('pomelo-schedule');
 // const moment = require('moment');
