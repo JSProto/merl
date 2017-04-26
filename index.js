@@ -1,27 +1,20 @@
 
 
-const co = require("co");
+const co = require('co');
 const unload = require('unload');
 const minimist = require('minimist');
-const server = require("./server");
+const server = require('./app/server');
+const vboxcluster = require('./app/vboxcluster')
 const argv = minimist(process.argv.slice(2));
 
-global.application = require("./application");
+const db = require('./lib/db');
 
-const appClose = application.actions.close;
-application.actions.close = function* () {
-    console.log();
-    const httpServer = application.httpServer;
-    if (httpServer) {
-        console.log("Shutting down the http server...");
-        application.httpServer = null;
-        yield new Promise(function (resolve) {
-            httpServer.close(resolve);
-        });
-    }
-
-    yield appClose();
+const application = {
+    db, config: {},
+    httpServer: null
 };
+
+global.application = application;
 
 
 unload.add(co.wrap(function* (err){
@@ -35,6 +28,8 @@ unload.add(co.wrap(function* (err){
 co(function* (){
     application.db.load();
 
+    application.cluster = vboxcluster(application);
+
     yield application.cluster.logon();
     yield* application.actions.keepAlive();
     yield* application.actions.refresh();
@@ -42,7 +37,7 @@ co(function* (){
     application.httpServer = server(application);
 
     if (argv.cron) {
-        require("./cron")(application);
+        require("./app/cron")(application);
     }
 }).catch(e => {
     console.log('ERROR: ', e.code, e.message);
