@@ -14,6 +14,7 @@ module.exports = function (app) {
 	});
 
 	router.get('/list', function* (req, res) {
+		const application = app.get('application');
 		yield* application.actions.refresh();
 		const db = app.get('db');
 	    res.json({success: true, list: db.vms});
