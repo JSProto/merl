@@ -12,7 +12,7 @@ const app = express();
 module.exports = function (application) {
     const config = application.config;
 
-    const appClose = application.actions.close;
+    const clusterCloseConnection = application.actions.close;
     application.actions.close = function* () {
         console.log();
         const httpServer = application.httpServer;
@@ -24,7 +24,7 @@ module.exports = function (application) {
             });
         }
 
-        yield appClose();
+        yield clusterCloseConnection();
     };
 
     app.set('application', application);

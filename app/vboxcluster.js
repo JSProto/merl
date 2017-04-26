@@ -6,7 +6,6 @@ const hosts = require(path.resolve('db', 'hosts.json'));
 const Cluster = require(path.resolve('lib', 'cluster.js'));
 
 let keepAliveTimeout = null;
-
 const vboxClearKeepAlive = function () {
     if (keepAliveTimeout) {
         clearTimeout(keepAliveTimeout);
@@ -29,7 +28,7 @@ module.exports = function(application){
                 let versions = yield vbox.version;
             }
             vboxClearKeepAlive();
-            keepAliveTimeout = setTimeout(co.wrap(this.keepAlive), 90000); // 1 min 30s
+            keepAliveTimeout = setTimeout(co.wrap(application.actions.keepAlive), 90000); // 1 min 30s
         },
         refresh: function* (){
             const vboxes = yield* cluster.fetch();
