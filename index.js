@@ -3,14 +3,19 @@
 const co = require('co');
 const unload = require('unload');
 const minimist = require('minimist');
-const server = require('./app/server');
-const vboxcluster = require('./app/vboxcluster')
+const rotator = require('./lib/rotator');
+const cron = require("./apps/cron");
+const server = require('./apps/server');
+const vboxcluster = require('./apps/vboxcluster');
+
 const argv = minimist(process.argv.slice(2));
 
 const db = require('./lib/db');
 
 const application = {
-    db, config: {},
+    db, rotator,
+    config: {},
+    actions: {},
     httpServer: null
 };
 
@@ -22,22 +27,35 @@ unload.add(co.wrap(function* (err){
         console.log(err)
     }
 
-    yield application.actions.close();
+    yield new Promise(resolve => {
+        const httpServer = application.httpServer;
+        if (httpServer) {
+            application.httpServer = null;
+            httpServer.close(resolve);
+        };
+    });
+
+    yield application.cluster.close();
 }));
+
 
 co(function* (){
     application.db.load();
 
+    cron(application);
+
     application.cluster = vboxcluster(application);
 
     yield application.cluster.logon();
-    yield* application.actions.keepAlive();
+    yield* application.cluster.keepAlive();
     yield* application.actions.refresh();
 
     application.httpServer = server(application);
 
-    if (argv.cron) {
-        require("./app/cron")(application);
+    application.rotator.setup(application);
+
+    if (argv.rotate) {
+        application.rotator.start();
     }
 }).catch(e => {
     console.log('ERROR: ', e.code, e.message);

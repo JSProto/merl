@@ -7,6 +7,12 @@ module.exports = function (app) {
 	    res.render('index', {title: new Buffer('TWVybGltIHZtIGFkbWluaXN0cmF0aW9u', 'base64').toString()});
 	});
 
+	router.get('/rotate', function* (req, res) {
+		const application = app.get('application');
+    	application.rotator.start();
+	    res.json({success: true});
+	});
+
 	router.get('/refresh', function* (req, res) {
 		const application = app.get('application');
 	    yield* application.actions.refresh();

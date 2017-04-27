@@ -12,20 +12,6 @@ const app = express();
 module.exports = function (application) {
     const config = application.config;
 
-    const clusterCloseConnection = application.actions.close;
-    application.actions.close = function* () {
-        console.log();
-        const httpServer = application.httpServer;
-        if (httpServer) {
-            console.log("Shutting down the http server...");
-            application.httpServer = null;
-            yield new Promise(function (resolve) {
-                httpServer.close(resolve);
-            });
-        }
-
-        yield clusterCloseConnection();
-    };
 
     app.set('application', application);
     app.set('db', application.db);
@@ -55,6 +41,11 @@ module.exports = function (application) {
         application.httpServer = httpServer;
 
         console.log(`Listening on http://${family == "IPv6" ? `[${address}]` : address}:${port}`);
+    });
+
+    httpServer.on('close', function(){
+        console.log();
+        console.log("Shutting down the http server...");
     });
 
     return httpServer;

@@ -3,7 +3,7 @@ const router = require('express').Router();
 const co = require('co');
 
 router.param('id', function (req, res, next, id) {
-    const application = req.app.get('application');
+    const cluster = req.app.get('cluster');
     const db = req.app.get('db');
 
     let vm = db._.getById(db.vms, id);
@@ -15,7 +15,7 @@ router.param('id', function (req, res, next, id) {
     res.success = false;
 
     co(function* (){
-        const machine = yield application.cluster.find(id, vm.host);
+        const machine = yield cluster.find(id, vm.host);
         req.vm = vm;
         req.machine = machine;
 
