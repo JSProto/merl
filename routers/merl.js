@@ -39,7 +39,7 @@ router.all('/list', (req, res) => {
             });
     }, Promise.resolve()).then(() => {
 
-        db.saveVms();
+        db.save();
 
         res.json({
             message,
@@ -73,7 +73,7 @@ router.get('/:id', (req, res, next) => {
             vm.merl_access = true;
             console.log(`${vm.name}: ${vm.today_time}`);
 
-            db.saveVms();
+            db.save();
             res.json({
                 success: true,
                 today_time: vm.today_time
@@ -84,7 +84,7 @@ router.get('/:id', (req, res, next) => {
             message.push(`login (${vm.name}): ${e.message}`);
             vm.merl_access = false;
 
-            db.saveVms();
+            db.save();
             res.json({
                 success: false,
                 message: e.message
