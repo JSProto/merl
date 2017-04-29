@@ -19,7 +19,7 @@ router.all('/list', (req, res) => {
 
         if (!ids && vm.state != 'running') return resolver;
 
-        let user = _.getById(db.users, vm.name);
+        let user = _.find(db.users, {name: vm.name});
         if (!user || !user.pass) return resolver;
 
         return resolver
@@ -62,8 +62,8 @@ router.get('/reset-game-time', (req, res) => {
 
 router.get('/:id', (req, res, next) => {
     let name = req.params.id;
-    let vm = _.getById(db.vms, name);
-    let user = _.getById(db.users, name);
+    let vm = _.find(db.vms, {name});
+    let user = _.find(db.users, {name});
 
     stat(user)
         .then(json => {
