@@ -12,6 +12,7 @@
     "express": "^4.14.0",
     "express-yields": "^1.0.2",
     "lodash": "^4.17.4",
+    "lowdb": "^0.16.2",
     "method-override": "^2.3.7",
     "minimist": "^1.2.0",
     "nightmare": "^2.10.0",
@@ -23,6 +24,6 @@
   "scripts": {
     "preinstall": "cp db_example db && npm install -g bower",
     "postinstall": "bower install",
-    "start": "node index.js --cron"
+    "start": "node index.js --rotate"
   }
 }
