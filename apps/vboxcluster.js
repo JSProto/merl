@@ -10,7 +10,7 @@ module.exports = function(application){
 
     application.actions = {
         refresh: function* (){
-            const vboxes = yield* cluster.fetch();
+            const vboxes = yield* cluster.fetch('/work');
             let vms = [];
 
             for (let [host, boxes] of vboxes) {
