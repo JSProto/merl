@@ -48,15 +48,13 @@ Vue.filter('recordLength', function (result, key) {
     return result.length;
 });
 
-
-Vue.filter('formatGameTime', function (date, fromFormat) {
+Vue.filter('formatGameTime', function (date) {
     let hours = Math.floor(moment.duration(date).as('hours'));
     let ms = moment(date, "hh:mm:ss").format("mm:ss");
     return `${hours}:${ms}`;
 });
-Vue.filter('formatLastStateChange', function (date, format) {
-    date = Number(date);
-    let hours = Math.floor(moment.duration(Date.now() - date).as('hours'));
+Vue.filter('formatLastStateChange', function (date) {
+    let hours = Math.floor(moment.duration(date).as('hours'));
     let ms = moment(date).format("mm:ss");
     return `${hours}:${ms}`;
 });
@@ -66,12 +64,12 @@ Vue.filter('dump', function (dump, format) {
     return 1;
 });
 
-Vue.filter('runningOnHost', function (obj) {
-    obj = obj || {};
-    let l = data.vm.data.filter(r => r.state == 'Running').filter(r => r.host == obj.host).length;
-    console.log('runningOnHost', l, obj);
-    return l;
-});
+// Vue.filter('runningOnHost', function (obj) {
+//     obj = obj || {};
+//     let l = data.data.filter(r => r.state == 'Running').filter(r => r.host == obj.host).length;
+//     console.log('runningOnHost', l, obj);
+//     return l;
+// });
 
 const DefaultGridCell = Vue.component('defaultGridCell', {
     props: ['row', 'column'],
@@ -148,80 +146,79 @@ Vue.component('datagridvm', DataGrid.extend({
 // data | filterBy row.host in 'host' | filterBy 'Running' in 'state' | recordLength
 
 let store = {
-    vm: {
-        data: [],
+    data: [],
 
-        columns: [{
-            key: 'name',
-            name: 'Name',
-            // template: 'loginGridCell',
-            style: {
-                'text-align': 'left'
-            }
-        }, {
-            key: 'today_time',
-            name: 'Today Time',
-            template: 'timerGridCell',
-            style: {
-                width: '180px',
-                'text-align': 'right'
-            },
-            filter: {
-                name: "formatGameTime"
-            }
-        }, {
-            key: 'today_downloads',
-            name: 'Today DL',
-            sortable: false,
-            style: {
-                width: '80px',
-                'text-align': 'center'
-            }
-        }, {
-            key: 'total_downloads',
-            name: 'Total DL',
-            sortable: false,
-            style: {
-                width: '80px',
-                'text-align': 'center'
-            }
-        }, {
-            key: 'host',
-            name: 'Host',
-            groupable: true,
-            style: {
-                width: '130px',
-                'text-align': 'center'
-            }
-        }, {
-            key: 'lastStateChange',
-            name: 'Change',
-            style: {
-                width: '110px',
-                'text-align': 'right'
-            },
-            filter: {
-                name: "formatLastStateChange"
-            }
-        }, {
-            key: 'state',
-            name: 'State',
-            groupable: true,
-            style: {
-                width: '120px',
-                'text-align': 'center'
-            }
-        }, {
-            key: 'action',
-            name: ' ',
-            sortable: false,
-            template: 'radioGridCell',
-            style: {
-                width: '50px',
-                'text-align': 'center'
-            }
-        }]
-    },
+    columns: [{
+        key: 'name',
+        name: 'Name',
+        // template: 'loginGridCell',
+        style: {
+            'text-align': 'left'
+        }
+    }, {
+        key: 'today_time',
+        name: 'Today Time',
+        template: 'timerGridCell',
+        style: {
+            width: '180px',
+            'text-align': 'right'
+        },
+        filter: {
+            name: "formatGameTime"
+        }
+    }, {
+        key: 'today_downloads',
+        name: 'Today DL',
+        sortable: false,
+        style: {
+            width: '80px',
+            'text-align': 'center'
+        }
+    }, {
+        key: 'total_downloads',
+        name: 'Total DL',
+        sortable: false,
+        style: {
+            width: '80px',
+            'text-align': 'center'
+        }
+    }, {
+        key: 'host',
+        name: 'Host',
+        groupable: true,
+        style: {
+            width: '130px',
+            'text-align': 'center'
+        }
+    }, {
+        key: 'lastStateChange',
+        name: 'Change',
+        style: {
+            width: '110px',
+            'text-align': 'right'
+        },
+        filter: {
+            name: "formatLastStateChange"
+        }
+    }, {
+        key: 'state',
+        name: 'State',
+        groupable: true,
+        style: {
+            width: '120px',
+            'text-align': 'center'
+        }
+    }, {
+        key: 'action',
+        name: ' ',
+        sortable: false,
+        template: 'radioGridCell',
+        style: {
+            width: '50px',
+            'text-align': 'center'
+        }
+    }],
+
     states: [
         'Null',
         'PoweredOff',
@@ -293,9 +290,9 @@ let App = new Vue({
 
             request(`/vm/stop/${vm.id}`).then((res) => {
                 if (res.success) {
-                    let time = moment(res.down_time).format("mm:ss");
+                    // let time = moment(res.down_time).format("mm:ss");
                     vm.state = 'PoweredOff';
-                    vm.down_time = res.down_time;
+                    // vm.down_time = res.down_time;
                     // GameTimeEmulator.get(vm).stop();
                 }
                 else {
@@ -308,14 +305,19 @@ let App = new Vue({
             let minutes = moment.duration(row.today_time).asMinutes();
             row.transitiongoal = (minutes > 40 ? 100 : minutes / 100 * 40);
         },
+        calculateLastStateChange: function(row){
+            console.log(row.name, row.lastStateChange);
+            row.lastStateChange = Date.now() - Number(row.lastStateChange);
+        },
         processRow: function(row){
             this.calculateTransitiongoal(row);
+            this.calculateLastStateChange(row);
             // if (row.state == 'Running') GameTimeEmulator.get(row).reset().start();
         },
         fetchData: function() {
             return request('/list').then((response) => {
-                this.vm.data = response.list;
-                this.vm.data.forEach(row => this.processRow(row));
+                this.data = response.list;
+                this.data.forEach(row => this.processRow(row));
 
                 notify.info('Данные получены');
             }).catch(e => {
@@ -328,12 +330,11 @@ let App = new Vue({
 
             let promise = request('/list');
 
-
             let refreshed = () => component.refreshingData = false;
 
             promise.then((response) => {
                 response.list.forEach((rvm) => {
-                    this.vm.data.find((vm, index) => {
+                    this.data.find((vm, index) => {
                         if (vm.name === rvm.name) {
                             Object.assign(vm, rvm);
                             this.processRow(vm);
@@ -374,7 +375,7 @@ let App = new Vue({
     },
     computed: {
         groupedHost: function(host, row){
-            let r = this.$options.filters.groupBy(this.vm.data, 'host');
+            let r = this.$options.filters.groupBy(this.data, 'host');
             console.dir(r);
             return r;
         }
