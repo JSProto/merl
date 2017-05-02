@@ -10,9 +10,9 @@ module.exports = function(application){
 
     application.actions = {
         refresh: function* (){
-
             const vboxes = yield* cluster.fetch('/work');
             let vms = [];
+
             for (let [host, boxes] of vboxes) {
                 for (let box of boxes) {
                     let obj = yield* box.toPlainObject('id', 'name', 'state', 'lastStateChange');

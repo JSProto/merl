@@ -49,19 +49,21 @@ Vue.filter('recordLength', function (result, key) {
 });
 
 
-// | filterBy 'Running' in 'state' | recordLength
-
-Vue.filter('formatDownTime', function (date, format) {
-    return moment(date).format(format || 'MM/DD HH:mm:ss'); // March 3rd, 8:55:36 pm
-});
-Vue.filter('dump', function (dump, format) {
-    console.log('dump', dump, format);
-    return 1;
-});
 Vue.filter('formatGameTime', function (date, fromFormat) {
     let hours = Math.floor(moment.duration(date).as('hours'));
     let ms = moment(date, "hh:mm:ss").format("mm:ss");
     return `${hours}:${ms}`;
+});
+Vue.filter('formatLastStateChange', function (date, format) {
+    date = Number(date);
+    let hours = Math.floor(moment.duration(Date.now() - date).as('hours'));
+    let ms = moment(date).format("mm:ss");
+    return `${hours}:${ms}`;
+});
+
+Vue.filter('dump', function (dump, format) {
+    console.log('dump', dump, format);
+    return 1;
 });
 
 Vue.filter('runningOnHost', function (obj) {
@@ -183,23 +185,23 @@ let store = {
                 width: '80px',
                 'text-align': 'center'
             }
-        // }, {
-        //     key: 'down_time',
-        //     name: 'Down Time',
-        //     style: {
-        //         width: '150px',
-        //         'text-align': 'center'
-        //     },
-        //     filter: {
-        //         name: "formatDownTime"
-        //     }
         }, {
             key: 'host',
             name: 'Host',
             groupable: true,
             style: {
-                width: '150px',
+                width: '130px',
                 'text-align': 'center'
+            }
+        }, {
+            key: 'lastStateChange',
+            name: 'Change',
+            style: {
+                width: '110px',
+                'text-align': 'right'
+            },
+            filter: {
+                name: "formatLastStateChange"
             }
         }, {
             key: 'state',
