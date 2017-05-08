@@ -46,7 +46,7 @@ co(function* (){
 
     application.cluster = vboxcluster(application);
 
-    yield application.cluster.logon();
+    yield application.cluster.logon({timeout: 1000});
     yield* application.cluster.keepAlive();
     yield* application.actions.refresh();
 
