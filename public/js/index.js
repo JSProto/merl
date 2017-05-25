@@ -302,7 +302,7 @@ let App = new Vue({
             });
         },
         calculateTransitiongoal: function(row){
-            const worktime = 39;
+            const worktime = 35;
             let minutes = moment.duration(row.today_time).asMinutes();
             row.transitiongoal = (minutes > worktime ? 100 : minutes / 100 * worktime);
         },
