@@ -15,6 +15,7 @@
     "lowdb": "^0.16.2",
     "method-override": "^2.3.7",
     "minimist": "^1.2.0",
+    "moment": "^2.18.1",
     "nightmare": "^2.10.0",
     "pomelo-schedule": "^0.3.7",
     "underscore-db": "^0.12.2",
