@@ -304,7 +304,7 @@ let App = new Vue({
         calculateTransitiongoal: function(row){
             const worktime = 35;
             let minutes = moment.duration(row.today_time).asMinutes();
-            row.transitiongoal = (minutes > worktime ? 100 : minutes / 100 * worktime);
+            row.transitiongoal = (minutes > worktime ? 100 : minutes / worktime * 100);
         },
         calculateLastStateChange: function(row){
             console.log(row.name, row.lastStateChange);
